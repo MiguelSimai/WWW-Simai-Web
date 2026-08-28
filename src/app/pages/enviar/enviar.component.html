@@ -1,0 +1,257 @@
+<section class="enviar">
+  <div class="container">
+
+    <header class="enviar__head">
+      <span class="eyebrow">Nueva solicitud</span>
+      <h1 class="enviar__titulo">Envía tus archivos</h1>
+      <p class="enviar__lead">
+        Elige el servicio, suelta tus archivos o carpetas y confirma. Cada carpeta se
+        convierte en una solicitud con su número, y cada archivo suelto en una propia.
+      </p>
+    </header>
+
+    @if (!servicios().length) {
+      <!-- Cuenta sin servicios habilitados: no hay nada que ofrecer, y es
+           mejor decirlo que mostrar una pantalla que va a rechazar todo. -->
+      <div class="sin-servicios card">
+        <h2 class="sin-servicios__titulo">Tu cuenta todavía no tiene servicios activos</h2>
+        <p class="sin-servicios__texto">
+          Escríbenos y los habilitamos. Si acabas de contratar, puede tardar unos minutos
+          en reflejarse.
+        </p>
+        <a class="btn btn--secondary" routerLink="/" fragment="contacto">Contactar</a>
+      </div>
+    } @else {
+
+    <!-- ===== Servicio ===== -->
+    <h2 class="enviar__paso">1. ¿Qué necesitas?</h2>
+
+    <ul class="opciones" role="radiogroup" aria-label="Servicio a utilizar">
+      @for (s of servicios(); track s.id) {
+        <li>
+          <button
+            type="button"
+            class="opcion"
+            role="radio"
+            [class.is-activo]="esElegido(s.id)"
+            [attr.aria-checked]="esElegido(s.id)"
+            [disabled]="enviando()"
+            (click)="elegirServicio(s.id)">
+            <span class="opcion__icono">
+              <app-icon [name]="s.icono" />
+            </span>
+            <span class="opcion__nombre">{{ s.nombre }}</span>
+            <span class="opcion__precio">${{ s.precio }} por {{ s.unidad }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+
+    <!-- ===== Archivos ===== -->
+    <h2 class="enviar__paso">2. Tus archivos</h2>
+
+    <div
+      class="zona"
+      [class.is-activa]="arrastrando()"
+      (dragover)="onArrastrar($event, true)"
+      (dragleave)="onArrastrar($event, false)"
+      (drop)="onSoltar($event)">
+
+      <span class="zona__icono" aria-hidden="true">
+        <app-icon name="nube" />
+      </span>
+
+      <p class="zona__texto">Arrastra tus archivos o carpetas aquí</p>
+
+      <div class="zona__botones">
+        <label class="btn btn--secondary zona__boton">
+          Elegir archivos
+          <input
+            type="file"
+            class="sr-only"
+            multiple
+            [attr.accept]="servicio().acepta.join(',')"
+            [disabled]="enviando()"
+            (change)="onSeleccionar($event)" />
+        </label>
+
+        <label class="btn btn--secondary zona__boton">
+          Elegir una carpeta
+          <!-- webkitdirectory hace que cada archivo llegue con su ruta en
+               webkitRelativePath: de ahí sale el número del expediente. -->
+          <input
+            type="file"
+            class="sr-only"
+            multiple
+            webkitdirectory
+            [disabled]="enviando()"
+            (change)="onSeleccionar($event)" />
+        </label>
+      </div>
+
+      <p class="zona__ayuda">
+        Acepta {{ servicio().acepta.join(', ') }} · hasta {{ servicio().maxMb }} MB por archivo
+      </p>
+      <p class="zona__ayuda">
+        Cada carpeta es una solicitud, y su nombre es el número con que la sigues.
+        Para subir varias de una vez, elige la carpeta que las contiene o arrástralas juntas.
+      </p>
+    </div>
+
+    <!-- ===== Cola ===== -->
+    @if (cola().length) {
+      <ul class="cola">
+        @for (expediente of cola(); track expediente.id) {
+          <li class="item" [class]="'item item--' + expediente.estado">
+            <div class="item__info">
+              <span class="item__nombre">
+                {{ nombreDe(expediente) }}
+                @if (expediente.numero) {
+                  <span class="item__etiqueta">Solicitud {{ expediente.numero }}</span>
+                }
+              </span>
+              <span class="item__meta">
+                @if (expediente.documentos.length > 1) {
+                  {{ expediente.documentos.length }} archivos ·
+                }
+                {{ pesoDe(expediente) }}
+                @if (minutosDe(expediente) !== null) {
+                  · {{ minutosDe(expediente) }} min
+                }
+                @if (expediente.codigo) {
+                  · {{ expediente.codigo }}
+                }
+              </span>
+
+              <!-- Los documentos rechazados van primero y se nombran uno por
+                   uno: si algo no va a viajar, el cliente tiene que saber cuál
+                   y por qué antes que cualquier resumen. -->
+              @for (doc of expediente.documentos; track doc.id) {
+                @if (doc.error) {
+                  <span class="item__error">
+                    @if (expediente.documentos.length > 1) {
+                      {{ doc.file.name }} —
+                    }
+                    {{ doc.error }}
+                  </span>
+                }
+              }
+
+              @if (expediente.error) {
+                <span class="item__error">{{ expediente.error }}</span>
+              }
+
+              @if (expediente.documentos.length > 1) {
+                <details class="item__detalle">
+                  <summary>Ver los {{ expediente.documentos.length }} archivos</summary>
+                  <ul class="item__lista">
+                    @for (doc of expediente.documentos; track doc.id) {
+                      <li [class.is-descartado]="doc.error">
+                        {{ doc.file.name }}
+                        <span class="item__peso">{{ peso(doc.file.size) }}</span>
+                      </li>
+                    }
+                  </ul>
+                </details>
+              }
+            </div>
+
+            @if (expediente.estado === 'subiendo') {
+              <div class="item__barra" role="progressbar"
+                   [attr.aria-valuenow]="expediente.progreso"
+                   aria-valuemin="0" aria-valuemax="100"
+                   [attr.aria-label]="'Subiendo ' + nombreDe(expediente)">
+                <span class="item__relleno" [style.width.%]="expediente.progreso"></span>
+              </div>
+              <span class="item__pct">{{ expediente.progreso }}%</span>
+            } @else if (expediente.estado === 'listo') {
+              <span class="badge badge--ok">Enviado</span>
+            } @else if (expediente.estado === 'error') {
+              <span class="badge badge--error">Con error</span>
+            } @else {
+              <span class="badge badge--neutro">Listo para enviar</span>
+            }
+
+            @if (!enviando() && expediente.estado !== 'listo') {
+              <button type="button" class="item__quitar" (click)="quitar(expediente.id)">
+                <span class="sr-only">Quitar {{ nombreDe(expediente) }}</span>
+                <span aria-hidden="true">×</span>
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <!-- ===== Confirmación ===== -->
+    @if (pendientes().length) {
+      <div class="resumen card">
+        <div class="resumen__cuentas">
+          <p class="resumen__linea">
+            <span>Solicitudes por crear</span>
+            <strong>{{ pendientes().length }}</strong>
+          </p>
+          <p class="resumen__linea">
+            <span>Archivos por enviar</span>
+            <strong>{{ documentosPorEnviar() }}</strong>
+          </p>
+
+          @if (estimable()) {
+            <p class="resumen__linea">
+              <span>Volumen detectado</span>
+              <strong>{{ minutosTotales() }} {{ servicio().unidad }}s</strong>
+            </p>
+            <p class="resumen__linea resumen__total">
+              <span>Costo estimado</span>
+              <strong>${{ costoEstimado().toLocaleString('es-CL') }}</strong>
+            </p>
+          } @else {
+            <!-- Sin poder medir el volumen, prometer un total sería inventarlo. -->
+            <p class="resumen__nota">
+              El costo se calcula al procesar, a
+              ${{ servicio().precio }} por {{ servicio().unidad }}. Lo verás en cada
+              solicitud de tu panel.
+            </p>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="btn btn--primary btn--lg"
+          [disabled]="enviando()"
+          (click)="enviar()">
+          @if (enviando()) {
+            Enviando…
+          } @else {
+            Enviar {{ pendientes().length }}
+            {{ pendientes().length === 1 ? 'solicitud' : 'solicitudes' }}
+          }
+        </button>
+      </div>
+    }
+
+    @if (enviados().length && !pendientes().length && !enviando()) {
+      <div class="final card" role="status">
+        <h2 class="final__titulo">
+          {{ enviados().length }}
+          {{ enviados().length === 1 ? 'solicitud creada' : 'solicitudes creadas' }}
+        </h2>
+        <p class="final__texto">
+          Ya están en cola. Te avisamos al terminar; mientras tanto puedes seguir su estado
+          en el panel.
+        </p>
+        <div class="final__acciones">
+          <button type="button" class="btn btn--primary" (click)="irAlPanel()">
+            Ver mis solicitudes
+          </button>
+          <button type="button" class="btn btn--secondary" (click)="limpiar()">
+            Enviar más archivos
+          </button>
+        </div>
+      </div>
+    }
+
+    }
+
+  </div>
+</section>

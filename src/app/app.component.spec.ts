@@ -1,29 +1,39 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AppComponent } from './app.component';
+import { routes } from './app.routes';
+import { AUTH } from './core/auth';
+import { AuthMock } from './core/auth.mock';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
+      providers: [provideRouter(routes), { provide: AUTH, useClass: AuthMock }],
     }).compileComponents();
   });
 
-  it('should create the app', () => {
+  it('se crea correctamente', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it(`should have the 'portal-solicitudes' title`, () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app.title).toEqual('portal-solicitudes');
-  });
-
-  it('should render title', () => {
+  it('monta el header, el main y el footer', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, portal-solicitudes');
+
+    const html: HTMLElement = fixture.nativeElement;
+    expect(html.querySelector('app-site-header')).toBeTruthy();
+    expect(html.querySelector('main#contenido')).toBeTruthy();
+    expect(html.querySelector('app-site-footer')).toBeTruthy();
+  });
+
+  it('expone un enlace para saltar al contenido', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    const skip = fixture.nativeElement.querySelector('a.skip-link') as HTMLAnchorElement | null;
+    expect(skip).toBeTruthy();
+    expect(skip?.getAttribute('href')).toBe('#contenido');
   });
 });

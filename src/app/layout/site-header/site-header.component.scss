@@ -1,0 +1,229 @@
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  min-height: var(--header-h);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  min-height: var(--header-h);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  margin-right: auto;
+  color: var(--c-text);
+  text-decoration: none;
+}
+
+/* ===== Navegación ===== */
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.site-nav__list {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.site-nav__link {
+  position: relative;
+  padding-block: var(--sp-2);
+  color: var(--c-text-muted);
+  font-weight: 550;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.site-nav__link:hover,
+.site-nav__link.is-active {
+  color: var(--c-brand);
+}
+
+.site-nav__link::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--c-brand);
+  border-radius: var(--radius-pill);
+  transform: scaleX(0);
+  transition: transform 0.15s ease;
+}
+
+.site-nav__link:hover::after,
+.site-nav__link.is-active::after {
+  transform: scaleX(1);
+}
+
+.site-header__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.site-header__acciones .btn {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.9375rem;
+}
+
+/* ===== Quién está conectado ===== */
+
+.sesion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-left: var(--sp-2);
+  font-size: 0.9375rem;
+  /* Es información, no un control: nada de cursor ni de hover. */
+  color: var(--c-text-muted);
+  max-width: 12rem;
+}
+
+.sesion__inicial {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--c-brand);
+  background: var(--c-brand-soft);
+  border-radius: 50%;
+}
+
+.sesion__nombre {
+  font-weight: 550;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Botón hamburguesa ===== */
+
+.site-header__toggle {
+  display: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.site-header__burger,
+.site-header__burger::before,
+.site-header__burger::after {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--c-text);
+  border-radius: var(--radius-pill);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.site-header__burger::before,
+.site-header__burger::after {
+  content: '';
+  position: relative;
+}
+
+.site-header__burger::before {
+  top: -6px;
+}
+
+.site-header__burger::after {
+  top: 4px;
+}
+
+.site-header__burger.is-open {
+  background: transparent;
+}
+
+.site-header__burger.is-open::before {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.site-header__burger.is-open::after {
+  transform: translateY(-4px) rotate(-45deg);
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 940px) {
+  .site-header__toggle {
+    display: grid;
+    order: 2;
+  }
+
+  .site-nav {
+    order: 3;
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-4);
+    padding-block: var(--sp-4) var(--sp-5);
+    border-top: 1px solid var(--c-border);
+  }
+
+  .site-nav.is-open {
+    display: flex;
+  }
+
+  .site-header__inner {
+    flex-wrap: wrap;
+  }
+
+  .site-nav__list {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .site-nav__link {
+    display: block;
+    padding: var(--sp-3) var(--sp-2);
+    font-size: 1rem;
+  }
+
+  .site-nav__link::after {
+    display: none;
+  }
+
+  .site-header__acciones {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* En el menú desplegado hay ancho de sobra: se muestra completo y sin
+     recortar, y va primero porque dice de quién es la sesión. */
+  .sesion {
+    order: -1;
+    max-width: none;
+    padding: var(--sp-2) 0;
+  }
+
+  .site-header__acciones .btn {
+    justify-content: center;
+    padding: 0.7rem 1.35rem;
+    font-size: 1rem;
+  }
+}

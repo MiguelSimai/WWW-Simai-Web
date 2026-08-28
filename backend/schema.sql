@@ -1,0 +1,14 @@
+-- El modelo de datos se mudó a migraciones/.
+--
+-- Este archivo era una sola foto del esquema, que había que aplicar a mano y
+-- recordar qué se había aplicado en cada base. Ahora cada base lleva su propia
+-- cuenta en la tabla `migraciones`, y llevarla al día es un comando:
+--
+--     .venv\Scripts\python.exe migrar.py            aplica lo que falte
+--     .venv\Scripts\python.exe migrar.py --estado   solo mira, no escribe
+--
+-- Cambiar de base —local, Neon, Azure— es apuntar DATABASE_URL al destino y
+-- correr eso.
+--
+-- Lo que había acá está íntegro en migraciones/001, 002 y 003. No agregues
+-- nada a este archivo: no se ejecuta.

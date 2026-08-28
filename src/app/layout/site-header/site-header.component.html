@@ -1,0 +1,67 @@
+<header class="site-header">
+  <div class="container site-header__inner">
+
+    <a class="brand" routerLink="/" (click)="closeMenu()" aria-label="SimAI — ir al inicio">
+      <app-logo variante="apilado" [alto]="48" [conLema]="true" />
+    </a>
+
+    <button
+      type="button"
+      class="site-header__toggle"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="nav-principal"
+      (click)="toggleMenu()">
+      <span class="sr-only">{{ menuOpen() ? 'Cerrar menú' : 'Abrir menú' }}</span>
+      <span class="site-header__burger" [class.is-open]="menuOpen()" aria-hidden="true"></span>
+    </button>
+
+    <nav
+      id="nav-principal"
+      class="site-nav"
+      [class.is-open]="menuOpen()"
+      aria-label="Navegación principal">
+      <ul class="site-nav__list">
+        @for (link of links; track link.label) {
+          <li>
+            <a
+              class="site-nav__link"
+              [routerLink]="link.ruta"
+              [fragment]="link.fragmento"
+              [routerLinkActive]="link.fragmento ? '' : 'is-active'"
+              (click)="closeMenu()">
+              {{ link.label }}
+            </a>
+          </li>
+        }
+      </ul>
+
+      <div class="site-header__acciones">
+        @if (autenticado()) {
+          @if (esAdmin()) {
+            <a class="btn btn--ghost" routerLink="/admin" (click)="closeMenu()">Administración</a>
+          }
+
+          <a class="btn btn--secondary" routerLink="/panel" (click)="closeMenu()">
+            Mis solicitudes
+          </a>
+
+          <!-- Quién está conectado. El title lleva el correo completo: el
+               nombre puede repetirse, el correo no. -->
+          <span class="sesion" [title]="usuario()?.email ?? ''">
+            <span class="sesion__inicial" aria-hidden="true">{{ inicial() }}</span>
+            <span class="sesion__nombre">{{ nombreCorto() }}</span>
+          </span>
+
+          <button type="button" class="btn btn--ghost" (click)="salir()">
+            Salir<span class="sr-only"> de la cuenta de {{ usuario()?.email }}</span>
+          </button>
+        } @else {
+          <!-- Un solo camino de entrada: con Google, registrarse y entrar son
+               lo mismo. La contratación viene después, ya dentro del portal. -->
+          <a class="btn btn--primary" routerLink="/ingresar" (click)="closeMenu()">Ingresar</a>
+        }
+      </div>
+    </nav>
+
+  </div>
+</header>

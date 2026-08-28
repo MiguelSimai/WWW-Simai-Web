@@ -1,0 +1,436 @@
+.panel {
+  padding-block: var(--sp-7) var(--sp-9);
+  background: var(--c-bg-subtle);
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* ===================== Encabezado ===================== */
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-5);
+}
+
+.panel__titulo {
+  font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.25rem);
+}
+
+.panel__sub {
+  margin-top: var(--sp-2);
+  color: var(--c-text-muted);
+}
+
+.panel__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.panel__aviso {
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Indicadores ===================== */
+
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+}
+
+.indicador {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+}
+
+.indicador__icono {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--sp-2);
+  padding: 8px;
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  color: var(--c-brand);
+}
+
+.indicador__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.indicador__valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.indicador__nota {
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Filtros ===================== */
+
+.panel__seccion {
+  margin-top: var(--sp-8);
+  font-size: 1.375rem;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.45rem 0.9rem;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.filtro:hover {
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+.filtro.is-activo {
+  background: var(--c-brand);
+  border-color: var(--c-brand);
+  color: #fff;
+}
+
+.filtro__conteo {
+  padding: 0 0.4rem;
+  background: var(--c-bg-subtle);
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--c-text-muted);
+}
+
+.filtro.is-activo .filtro__conteo {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* ===================== Lista de solicitudes ===================== */
+
+.solicitudes {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+.solicitud {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.solicitud:hover {
+  border-color: var(--c-border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.solicitud__icono {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  padding: 10px;
+  background: var(--c-bg-subtle);
+  border-radius: var(--radius-md);
+  color: var(--c-text-muted);
+}
+
+.solicitud__principal {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.solicitud__codigo {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--c-brand);
+}
+
+.solicitud__archivo {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.solicitud__servicio {
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+}
+
+.solicitud__datos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  font-size: 0.9375rem;
+}
+
+.solicitud__dato {
+  display: grid;
+  gap: 2px;
+}
+
+.solicitud__dato-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.solicitud__estado {
+  display: grid;
+  justify-items: end;
+  gap: var(--sp-2);
+  text-align: right;
+}
+
+.solicitud__resultado {
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+}
+
+.vacio {
+  margin-top: var(--sp-5);
+  padding: var(--sp-7) var(--sp-5);
+  background: var(--c-surface);
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Responsive ===================== */
+
+/* ===================== Descarga de resultados ===================== */
+
+.descarga {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+}
+
+.descarga__titulo {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.descarga__nota {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+  max-width: 44ch;
+}
+
+.descarga__campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sp-3);
+}
+
+.campo-fecha {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+
+  input {
+    padding: 0.5rem 0.65rem;
+    font: inherit;
+    font-size: 0.9375rem;
+    color: var(--c-text);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm);
+  }
+}
+
+.descarga__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--c-error);
+}
+
+/* ===================== Documentos de una solicitud ===================== */
+
+/* Abarca toda la fila: es un panel que se despliega bajo los datos, no una
+   quinta columna. */
+.documentos {
+  grid-column: 1 / -1;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+  font-size: 0.875rem;
+
+  summary {
+    cursor: pointer;
+    color: var(--c-brand);
+    font-weight: 550;
+  }
+}
+
+.documentos__aviso {
+  margin: var(--sp-3) 0 0;
+  color: var(--c-text-muted);
+}
+
+.documentos__lista {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.documento {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-bg);
+  border-radius: var(--radius-md);
+}
+
+.documento__nombre {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.documento__meta {
+  color: var(--c-text-muted);
+}
+
+/* El resultado y el error van bajo las tres columnas, en todo el ancho. */
+.documento__resultado,
+.documento__error {
+  grid-column: 1 / -1;
+}
+
+.documento__resultado {
+  color: var(--c-text-muted);
+}
+
+.documento__error {
+  color: var(--c-error);
+  font-weight: 550;
+}
+
+@media (max-width: 1080px) {
+  .indicadores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .solicitud {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .solicitud__datos,
+  .solicitud__estado {
+    grid-column: 2;
+  }
+
+  .solicitud__estado {
+    justify-items: start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 620px) {
+  .indicadores {
+    grid-template-columns: 1fr;
+  }
+
+  .solicitud {
+    grid-template-columns: 1fr;
+  }
+
+  .solicitud__datos {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .solicitud__datos,
+  .solicitud__estado {
+    grid-column: 1;
+  }
+
+  .documento {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .panel__acciones .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* Estado de cuenta recién creada, todavía sin saldo. */
+.bienvenida {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+  max-width: 46rem;
+  padding: var(--sp-7) var(--sp-6);
+}
+
+.bienvenida__titulo {
+  font-size: 1.5rem;
+}
+
+.bienvenida__texto {
+  max-width: 56ch;
+  color: var(--c-text-muted);
+}

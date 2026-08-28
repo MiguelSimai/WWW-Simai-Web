@@ -1,0 +1,413 @@
+<!-- ===================== Hero ===================== -->
+<section class="hero" id="inicio">
+  <div class="container hero__inner">
+
+    <div class="hero__copy">
+      <span class="hero__eyebrow">Inteligencia artificial aplicada</span>
+
+      <h1 class="hero__title">
+        Inteligencia Artificial para impulsar el
+        <span>crecimiento exponencial</span>
+        de las empresas
+      </h1>
+
+      @for (parrafo of heroParrafos; track parrafo) {
+        <p class="hero__lead">{{ parrafo }}</p>
+      }
+
+      <p class="hero__cierre">{{ heroCierre }}</p>
+
+      <div class="hero__actions">
+        <a class="btn btn--primary btn--lg" routerLink="/" fragment="contacto">Conversemos</a>
+        <a class="btn btn--on-dark btn--lg" routerLink="/" fragment="como-trabajamos">
+          Cómo trabajamos
+        </a>
+      </div>
+    </div>
+
+    <!-- Ejemplo ilustrativo: primero dejamos el proceso andando, después se consume por API -->
+    <div class="hero__demo" role="img"
+         aria-label="Ejemplo del recorrido: primero se hace el levantamiento del proceso, se configuran y validan los modelos con casos reales y se habilita el endpoint. Después, en producción, cada llamada a la API devuelve los datos extraídos.">
+      <div class="demo">
+        <div class="demo__bar" aria-hidden="true">
+          <span class="demo__dot"></span>
+          <span class="demo__dot"></span>
+          <span class="demo__dot"></span>
+        </div>
+
+        <div class="demo__body" aria-hidden="true">
+          <div class="demo__fase">
+            <span class="demo__fase-titulo">Puesta en marcha</span>
+            <ul class="demo__pasos">
+              @for (paso of puestaEnMarcha; track paso) {
+                <li class="demo__paso">{{ paso }}</li>
+              }
+            </ul>
+          </div>
+
+          <div class="demo__fase demo__fase--prod">
+            <span class="demo__fase-titulo">Ya en producción</span>
+
+            <div class="demo__code">
+              <span class="demo__req">{{ demoEndpoint }}</span>
+              <span class="demo__res">{{ demoEstado }}</span>
+
+              <span class="demo__llave">&#123;</span>
+              @for (linea of demoRespuesta; track linea.campo) {
+                <span class="demo__par">
+                  <span class="demo__campo">"{{ linea.campo }}"</span>: {{ linea.valor }}
+                </span>
+              }
+              <span class="demo__llave">&#125;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== Quiénes somos ===================== -->
+<section class="section" id="nosotros">
+  <div class="container texto__inner">
+
+    <div class="texto__encabezado">
+      <span class="eyebrow">Quiénes somos</span>
+      <h2 class="section-title">
+        Aceleramos el crecimiento empresarial mediante Inteligencia Artificial
+      </h2>
+    </div>
+
+    <div class="texto__cuerpo">
+      @for (parrafo of nosotros; track parrafo) {
+        <p class="texto__parrafo">{{ parrafo }}</p>
+      }
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== Visión ===================== -->
+<section class="vision" id="vision">
+  <div class="container vision__inner">
+
+    <div class="vision__encabezado">
+      <span class="eyebrow">Nuestra visión</span>
+      <h2 class="section-title">Empresas aumentadas por Inteligencia Artificial</h2>
+    </div>
+
+    <div class="vision__cuerpo">
+      @for (parrafo of vision; track parrafo) {
+        <p class="vision__parrafo">{{ parrafo }}</p>
+      }
+
+      <p class="vision__cierre">
+        @for (linea of visionCierre; track linea) {
+          <span>{{ linea }}</span>
+        }
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== Propuesta de valor ===================== -->
+<section class="section section--subtle" id="propuesta">
+  <div class="container">
+
+    <span class="eyebrow">Nuestra propuesta de valor</span>
+    <h2 class="section-title">
+      Convertimos cualquier tipo de información en capacidades empresariales
+    </h2>
+    <p class="section-lead">
+      Las organizaciones generan enormes cantidades de información que habitualmente se
+      encuentran dispersas en diferentes formatos. Procesamos y analizamos:
+    </p>
+
+    <ul class="fuentes">
+      @for (grupo of tiposInformacion; track grupo.titulo) {
+        <li class="fuente">
+          <h3 class="fuente__titulo">{{ grupo.titulo }}</h3>
+          <ul class="fuente__lista">
+            @for (item of grupo.items; track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        </li>
+      }
+    </ul>
+
+    <p class="propuesta__cierre">
+      Nuestras soluciones identifican patrones, extraen conocimiento, detectan oportunidades
+      de mejora y generan información estratégica para acelerar el desempeño de la
+      organización.
+    </p>
+
+  </div>
+</section>
+
+<!-- ===================== Servicios ===================== -->
+<section class="section" id="servicios">
+  <div class="container">
+
+    <span class="eyebrow">Servicios</span>
+    <h2 class="section-title">Cuatro formas de poner la IA a trabajar</h2>
+    <p class="section-lead">
+      Cada servicio se entrega por API y se adapta al contexto de tu organización. Si no
+      sabes por dónde partir, conversemos: lo definimos mirando tu operación.
+    </p>
+
+    <ul class="soluciones">
+      @for (servicio of servicios; track servicio.id) {
+        <li class="solucion" [id]="servicio.id">
+          <div class="solucion__cabecera">
+            <span class="solucion__icono" aria-hidden="true">
+              <app-icon [name]="servicio.icono" />
+            </span>
+            <div>
+              <h3 class="solucion__titulo">{{ servicio.titulo }}</h3>
+              <p class="solucion__resumen">{{ servicio.resumen }}</p>
+            </div>
+          </div>
+
+          <div class="solucion__bloques">
+            @for (bloque of servicio.bloques; track bloque.titulo) {
+              <div class="bloque">
+                <h4 class="bloque__titulo">{{ bloque.titulo }}</h4>
+                <ul class="bloque__lista">
+                  @for (item of bloque.items; track item) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+
+  </div>
+</section>
+
+<!-- ===================== Cómo trabajamos ===================== -->
+<section class="section section--subtle" id="como-trabajamos">
+  <div class="container">
+
+    <span class="eyebrow">Cómo trabajamos</span>
+    <h2 class="section-title">APIs de Inteligencia Artificial listas para integrarse</h2>
+    <p class="section-lead">
+      Nuestras capacidades se entregan mediante APIs empresariales seguras y altamente
+      escalables. Este es el recorrido de la información:
+    </p>
+
+    <ol class="pasos">
+      @for (paso of pasos; track paso.numero) {
+        <li class="paso">
+          <span class="paso__num">{{ paso.numero }}</span>
+          <h3 class="paso__titulo">{{ paso.titulo }}</h3>
+          <p class="paso__detalle">{{ paso.detalle }}</p>
+        </li>
+      }
+    </ol>
+
+  </div>
+</section>
+
+<!-- ===================== Compromiso ===================== -->
+<section class="compromiso" id="compromiso">
+  <div class="container compromiso__inner">
+
+    <div class="compromiso__encabezado">
+      <span class="eyebrow">Nuestro compromiso</span>
+      <h2 class="section-title">
+        Potenciar personas. Multiplicar capacidades. Acelerar crecimiento.
+      </h2>
+    </div>
+
+    <div class="compromiso__cuerpo">
+      @for (parrafo of compromiso; track parrafo) {
+        <p class="compromiso__parrafo">{{ parrafo }}</p>
+      }
+
+      <div class="mision">
+        <h3 class="mision__titulo">Nuestra misión</h3>
+        <p class="mision__texto">{{ mision }}</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== Seguridad ===================== -->
+<section class="section section--subtle" id="seguridad">
+  <div class="container seguridad__inner">
+
+    <div class="seguridad__intro">
+      <span class="eyebrow">Seguridad y confianza</span>
+      <h2 class="section-title">Tu información no es el producto</h2>
+      <p class="section-lead">
+        Procesamos material sensible: grabaciones internas, contratos, datos de clientes.
+        El diseño parte de esa premisa, no la agrega después.
+      </p>
+    </div>
+
+    <ul class="garantias">
+      @for (garantia of garantias; track garantia.titulo) {
+        <li class="garantia">
+          <span class="garantia__check" aria-hidden="true">
+            <app-icon name="escudo" />
+          </span>
+          <div>
+            <h3 class="garantia__titulo">{{ garantia.titulo }}</h3>
+            <p class="garantia__detalle">{{ garantia.detalle }}</p>
+          </div>
+        </li>
+      }
+    </ul>
+
+  </div>
+</section>
+
+<!-- ===================== Contacto ===================== -->
+<section class="section" id="contacto">
+  <div class="container contacto__inner">
+
+    <div class="contacto__intro">
+      <span class="eyebrow">Contáctenos</span>
+      <h2 class="section-title">Cuéntanos qué te está costando tiempo</h2>
+      <p class="section-lead">
+        No necesitas tener el problema definido ni saber qué tecnología usar. Descríbelo en
+        tus palabras y te decimos con franqueza si podemos ayudarte y cómo.
+      </p>
+
+      <ul class="contacto__datos">
+        @for (dato of datosContacto; track dato.label) {
+          <li class="contacto__dato">
+            <span class="contacto__dato-icono">
+              <app-icon [name]="dato.icono" />
+            </span>
+            <div>
+              <span class="contacto__dato-label">{{ dato.label }}</span>
+              @if (dato.href) {
+                <a class="contacto__dato-valor" [href]="dato.href">{{ dato.valor }}</a>
+              } @else {
+                <span class="contacto__dato-valor">{{ dato.valor }}</span>
+              }
+              <span class="contacto__dato-nota">{{ dato.nota }}</span>
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+
+    @if (contactoListo()) {
+      <div class="contacto__ok card" role="status">
+        <span class="contacto__ok-icono">
+          <app-icon name="evidencia" />
+        </span>
+        <h3 class="contacto__ok-titulo">Mensaje recibido</h3>
+        <p class="contacto__ok-texto">
+          Gracias por escribirnos. Te respondemos a la brevedad, dentro de un día hábil.
+        </p>
+        <p class="contacto__aviso">
+          Demostración: el mensaje todavía no se envía a ningún lado. Mientras tanto,
+          escríbenos directo a <a href="mailto:contacto&#64;simai.cl">contacto&#64;simai.cl</a>.
+        </p>
+        <button type="button" class="btn btn--secondary" (click)="escribirOtro()">
+          Escribir otro mensaje
+        </button>
+      </div>
+    } @else {
+      <form class="contacto__form card" [formGroup]="contacto" (ngSubmit)="enviarContacto()" novalidate>
+        <div class="field">
+          <label class="field__label" for="c-nombre">Nombre y apellido</label>
+          <input
+            id="c-nombre"
+            class="field__control"
+            type="text"
+            autocomplete="name"
+            formControlName="nombre"
+            [class.is-invalid]="contactoEnviado() && c.nombre.invalid"
+            [attr.aria-invalid]="contactoEnviado() && c.nombre.invalid"
+            [attr.aria-describedby]="contactoEnviado() && c.nombre.invalid ? 'error-c-nombre' : null" />
+          @if (contactoEnviado() && c.nombre.invalid) {
+            <span class="field__error" id="error-c-nombre">
+              Escribe tu nombre (al menos 3 caracteres).
+            </span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="c-email">Correo</label>
+          <input
+            id="c-email"
+            class="field__control"
+            type="email"
+            autocomplete="email"
+            formControlName="email"
+            [class.is-invalid]="contactoEnviado() && c.email.invalid"
+            [attr.aria-invalid]="contactoEnviado() && c.email.invalid"
+            [attr.aria-describedby]="contactoEnviado() && c.email.invalid ? 'error-c-email' : null" />
+          @if (contactoEnviado() && c.email.invalid) {
+            <span class="field__error" id="error-c-email">Escribe un correo válido.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="c-empresa">
+            Empresa <span class="field__opt">(opcional)</span>
+          </label>
+          <input
+            id="c-empresa"
+            class="field__control"
+            type="text"
+            autocomplete="organization"
+            formControlName="empresa" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="c-mensaje">¿En qué podemos ayudarte?</label>
+          <textarea
+            id="c-mensaje"
+            class="field__control contacto__area"
+            rows="5"
+            formControlName="mensaje"
+            placeholder="Por ejemplo: revisamos cientos de documentos al mes a mano y se nos escapan errores."
+            [class.is-invalid]="contactoEnviado() && c.mensaje.invalid"
+            [attr.aria-invalid]="contactoEnviado() && c.mensaje.invalid"
+            [attr.aria-describedby]="contactoEnviado() && c.mensaje.invalid ? 'error-c-mensaje' : null"></textarea>
+          @if (contactoEnviado() && c.mensaje.invalid) {
+            <span class="field__error" id="error-c-mensaje">
+              Cuéntanos un poco más (al menos 10 caracteres).
+            </span>
+          }
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--lg btn--block">Enviar mensaje</button>
+
+        <p class="contacto__aviso">
+          Usamos tus datos sólo para responderte. No compartimos tu correo con nadie.
+        </p>
+      </form>
+    }
+
+  </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section class="cta" id="empezar">
+  <div class="container cta__inner">
+    <h2 class="cta__titulo">Prueba con un archivo real</h2>
+    <p class="cta__texto">
+      Crea tu cuenta, carga el saldo mínimo y procesa algo tuyo hoy mismo. Si el resultado no
+      te sirve, no seguiste adelante y no perdiste un proyecto de meses.
+    </p>
+    <div class="cta__acciones">
+      <a class="btn btn--primary btn--lg" routerLink="/precios">Crear cuenta y cargar saldo</a>
+      <a class="btn btn--secondary btn--lg" href="mailto:contacto&#64;simai.cl">
+        Hablar con nosotros
+      </a>
+    </div>
+  </div>
+</section>

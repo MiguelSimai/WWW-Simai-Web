@@ -1,0 +1,104 @@
+.site-footer {
+  padding-block: var(--sp-8) var(--sp-6);
+  background: var(--c-bg-inverse);
+  color: var(--c-text-inverse-muted);
+  font-size: 0.9375rem;
+}
+
+.site-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
+}
+
+/* El logotipo lleva sus propios colores —incluidos azules oscuros— y el fondo
+   del footer es grafito: sobre él se perderían. Va dentro de una superficie
+   clara, que además es como suele presentarse una marca sobre fondo oscuro. */
+.site-footer__brand {
+  display: inline-block;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-surface);
+  border-radius: var(--radius-lg);
+}
+
+.site-footer__blurb {
+  margin-top: var(--sp-4);
+  max-width: 46ch;
+  line-height: 1.6;
+}
+
+.site-footer__sitio {
+  margin-top: var(--sp-3);
+  color: var(--c-text-inverse);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.site-footer__heading {
+  margin-bottom: var(--sp-3);
+  color: var(--c-text-inverse);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-footer__col li + li {
+  margin-top: var(--sp-2);
+}
+
+.site-footer a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.site-footer a:hover {
+  color: var(--c-text-inverse);
+  text-decoration: underline;
+}
+
+.site-footer__notice {
+  margin-top: var(--sp-7);
+  padding: var(--sp-4) var(--sp-5);
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--c-accent);
+  border-radius: var(--radius-sm);
+  max-width: 88ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.875rem;
+}
+
+.site-footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-5);
+}
+
+@media (max-width: 860px) {
+  .site-footer__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .site-footer__about {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-footer__grid {
+    grid-template-columns: 1fr;
+  }
+}

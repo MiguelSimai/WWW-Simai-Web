@@ -1,0 +1,55 @@
+<footer class="site-footer">
+  <div class="container">
+
+    <div class="site-footer__grid">
+      <div class="site-footer__about">
+        <!-- Acá hay espacio para el logotipo completo, con su lema. Va sobre
+             una superficie clara porque el logo tiene sus propios colores
+             —azules oscuros incluidos— y sobre grafito perderían contraste. -->
+        <span class="site-footer__brand">
+          <app-logo variante="completo" [alto]="96" />
+        </span>
+        <p class="site-footer__blurb">
+          Servicios de inteligencia artificial aplicada: transcripción, análisis de documentos
+          y audio, y automatización de procesos. Pago por uso, sin contratos anuales ni
+          implementaciones de meses.
+        </p>
+        <p class="site-footer__sitio">simai.cl</p>
+      </div>
+
+      <nav class="site-footer__col" aria-label="Servicios">
+        <h2 class="site-footer__heading">Servicios</h2>
+        <ul>
+          <li><a routerLink="/" fragment="servicios">Transcripción</a></li>
+          <li><a routerLink="/" fragment="servicios">Análisis de documentos</a></li>
+          <li><a routerLink="/" fragment="servicios">Análisis de conversaciones</a></li>
+          <li><a routerLink="/" fragment="servicios">Automatización</a></li>
+        </ul>
+      </nav>
+
+      <nav class="site-footer__col" aria-label="Cuenta">
+        <h2 class="site-footer__heading">Cuenta</h2>
+        <ul>
+          <li><a routerLink="/precios">Precios y contratación</a></li>
+          <li><a routerLink="/ingresar">Ingresar</a></li>
+          <li><a routerLink="/panel">Mis solicitudes</a></li>
+          <li><a routerLink="/" fragment="contacto">Contáctenos</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <p class="site-footer__notice">
+      Tus archivos se procesan cifrados y se eliminan según el plazo de retención que definas.
+      No se usan para entrenar modelos.
+    </p>
+
+    <div class="site-footer__bottom">
+      <small>© {{ year }} SimAI · Santiago, Chile</small>
+      <ul class="site-footer__legal">
+        <li><a href="#">Política de privacidad</a></li>
+        <li><a href="#">Términos de servicio</a></li>
+      </ul>
+    </div>
+
+  </div>
+</footer>

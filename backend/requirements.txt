@@ -1,0 +1,20 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+authlib==1.4.0
+httpx==0.28.1
+# Sin el extra `pool`: los hilos de fondo de psycopg_pool cuelgan el proceso
+# bajo Passenger, así que db.py abre una conexión por petición. Ver ese archivo.
+psycopg[binary]==3.2.3
+pydantic-settings==2.7.1
+itsdangerous==2.2.0
+truststore==0.10.1
+
+# Subida de expedientes: FastAPI necesita python-multipart para Form y File.
+python-multipart==0.0.20
+
+# Medición de lo que se cobra. Va en el servidor porque el dato del navegador
+# no es confiable: el cliente puede mentir sobre la duración de su audio.
+mutagen==1.47.0                 # duración de audio, para cobrar por minuto
+pypdf==5.1.0                    # cantidad de páginas, para cobrar por página
+
+openpyxl==3.1.5                 # planilla de resultados que descarga el cliente

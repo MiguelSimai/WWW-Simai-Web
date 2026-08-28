@@ -1,0 +1,123 @@
+.acceso {
+  padding-block: var(--sp-8);
+  background: var(--c-bg-subtle);
+  /* Ocupa la altura útil aunque el formulario sea corto. */
+  min-height: calc(100vh - var(--header-h));
+  display: grid;
+  align-items: center;
+}
+
+.acceso__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+  gap: var(--sp-8);
+  align-items: center;
+}
+
+.acceso__card {
+  padding: var(--sp-7) var(--sp-6);
+}
+
+.acceso__logo {
+  display: inline-block;
+  margin-bottom: var(--sp-5);
+}
+
+.acceso__titulo {
+  font-size: 1.625rem;
+}
+
+.acceso__lead {
+  margin-top: var(--sp-2);
+  color: var(--c-text-muted);
+}
+
+.acceso__error {
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-error-soft);
+  border-left: 3px solid var(--c-error);
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  color: var(--c-error);
+}
+
+/* Botón de Google: blanco con borde, según sus lineamientos de marca. */
+.btn--google {
+  margin-top: var(--sp-6);
+  background: var(--c-surface);
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+.btn--google:hover {
+  border-color: var(--c-text-muted);
+  background: var(--c-bg-subtle);
+}
+
+.acceso__g {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.acceso__aviso {
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}
+
+.acceso__pie {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--c-border);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+/* ===== Columna lateral ===== */
+
+.acceso__lateral-titulo {
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem);
+  max-width: 18ch;
+}
+
+.acceso__lista {
+  display: grid;
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
+  max-width: 46ch;
+  color: var(--c-text-muted);
+}
+
+.acceso__lista li {
+  position: relative;
+  padding-left: 1.75rem;
+}
+
+.acceso__lista li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c-accent);
+}
+
+@media (max-width: 900px) {
+  /* En móvil el formulario manda; el apoyo comercial baja, pero se conserva. */
+  .acceso__inner {
+    grid-template-columns: 1fr;
+    max-width: 30rem;
+    gap: var(--sp-7);
+  }
+
+  .acceso__lateral-titulo {
+    font-size: 1.375rem;
+  }
+}

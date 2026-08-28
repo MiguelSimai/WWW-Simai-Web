@@ -1,0 +1,209 @@
+<section class="panel">
+  <div class="container">
+
+    <!-- ===== Encabezado ===== -->
+    <header class="panel__head">
+      <div>
+        <span class="eyebrow">Tu cuenta</span>
+        <h1 class="panel__titulo">Hola, {{ usuario()?.nombre }}</h1>
+        <p class="panel__sub">
+          @if (usuario()?.empresa; as empresa) {
+            {{ empresa }} ·
+          }
+          {{ usuario()?.email }}
+        </p>
+      </div>
+
+      @if (contratado()) {
+        <div class="panel__acciones">
+          <a class="btn btn--secondary" routerLink="/precios" fragment="saldo">Recargar saldo</a>
+          <a class="btn btn--primary" routerLink="/enviar">Nueva solicitud</a>
+        </div>
+      }
+    </header>
+
+    @if (!contratado()) {
+      <!-- ===== Aún sin contratar ===== -->
+      <div class="bienvenida card">
+        <h2 class="bienvenida__titulo">Tu cuenta está lista</h2>
+        <p class="bienvenida__texto">
+          Falta un paso: carga saldo para empezar a procesar. Eliges cuánto, no vence, y
+          sólo se descuenta cuando envías algo.
+        </p>
+        <a class="btn btn--primary btn--lg" routerLink="/precios" fragment="saldo">
+          Elegir saldo y empezar
+        </a>
+      </div>
+    } @else {
+
+    @if (errorCarga(); as mensaje) {
+      <p class="panel__aviso" role="status">{{ mensaje }}</p>
+    }
+
+    <!-- ===== Indicadores ===== -->
+    <ul class="indicadores">
+      @for (indicador of indicadores(); track indicador.label) {
+        <li class="indicador">
+          <span class="indicador__icono">
+            <app-icon [name]="indicador.icono" />
+          </span>
+          <span class="indicador__label">{{ indicador.label }}</span>
+          <span class="indicador__valor">{{ indicador.valor }}</span>
+          <span class="indicador__nota">{{ indicador.nota }}</span>
+        </li>
+      }
+    </ul>
+
+    <!-- ===== Descarga de resultados ===== -->
+    <div class="descarga card">
+      <div class="descarga__texto">
+        <h2 class="descarga__titulo">Descargar resultados</h2>
+        <p class="descarga__nota">
+          Una planilla con una fila por solicitud terminada. Las que están en proceso
+          todavía no aparecen.
+        </p>
+      </div>
+
+      <div class="descarga__campos">
+        <label class="campo-fecha">
+          <span>Desde</span>
+          <input
+            type="date"
+            [value]="desde()"
+            [max]="hasta()"
+            (change)="cambiarDesde($any($event.target).value)" />
+        </label>
+
+        <label class="campo-fecha">
+          <span>Hasta</span>
+          <input
+            type="date"
+            [value]="hasta()"
+            [min]="desde()"
+            (change)="cambiarHasta($any($event.target).value)" />
+        </label>
+
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="descargando()"
+          (click)="descargar()">
+          {{ descargando() ? 'Generando…' : 'Descargar Excel' }}
+        </button>
+      </div>
+
+      @if (errorDescarga(); as mensaje) {
+        <p class="descarga__error" role="status">{{ mensaje }}</p>
+      }
+    </div>
+
+    <!-- ===== Solicitudes ===== -->
+    <h2 class="panel__seccion">Mis solicitudes</h2>
+
+    <div class="filtros" role="group" aria-label="Filtrar solicitudes por estado">
+      @for (opcion of opciones; track opcion.valor) {
+        <button
+          type="button"
+          class="filtro"
+          [class.is-activo]="filtro() === opcion.valor"
+          [attr.aria-pressed]="filtro() === opcion.valor"
+          (click)="cambiarFiltro(opcion.valor)">
+          {{ opcion.label }}
+          <span class="filtro__conteo">{{ contarPorFiltro(opcion.valor) }}</span>
+        </button>
+      }
+    </div>
+
+    @if (visibles().length) {
+      <ul class="solicitudes" aria-live="polite">
+        @for (solicitud of visibles(); track solicitud.codigo) {
+          <li class="solicitud">
+            <span class="solicitud__icono">
+              <app-icon [name]="iconoServicio(solicitud)" />
+            </span>
+
+            <div class="solicitud__principal">
+              <span class="solicitud__codigo">{{ solicitud.codigo }}</span>
+              <span class="solicitud__archivo">{{ solicitud.etiqueta }}</span>
+              <span class="solicitud__servicio">
+                {{ nombreServicio(solicitud) }}
+                @if (solicitud.documentos > 1) {
+                  · {{ solicitud.documentos }} archivos
+                }
+              </span>
+            </div>
+
+            <div class="solicitud__datos">
+              <span class="solicitud__dato">
+                <span class="solicitud__dato-label">Volumen</span>
+                {{ solicitud.unidades }} {{ unidadServicio(solicitud) }}s
+              </span>
+              <span class="solicitud__dato">
+                <span class="solicitud__dato-label">Costo</span>
+                {{ solicitud.costo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+              </span>
+              <span class="solicitud__dato">
+                <span class="solicitud__dato-label">Ingresada</span>
+                {{ solicitud.fecha | date: "d 'de' MMMM, HH:mm" }}
+              </span>
+            </div>
+
+            <div class="solicitud__estado">
+              <span [class]="'badge ' + badge(solicitud.estado)">
+                {{ etiqueta(solicitud.estado) }}
+              </span>
+              <span class="solicitud__resultado">{{ solicitud.resultado }}</span>
+            </div>
+
+            @if (solicitud.documentos > 0) {
+              <details
+                class="documentos"
+                (toggle)="alternarDetalle(solicitud, $any($event.target).open)">
+                <summary>
+                  Ver
+                  {{ solicitud.documentos === 1 ? 'el archivo' : 'los ' + solicitud.documentos + ' archivos' }}
+                </summary>
+
+                @if (documentosDe(solicitud.codigo); as documentos) {
+                  <ul class="documentos__lista">
+                    @for (doc of documentos; track doc.codigo) {
+                      <li class="documento">
+                        <span class="documento__nombre">{{ doc.archivo }}</span>
+                        <span class="documento__meta">
+                          {{ doc.unidades }} {{ unidadServicio(solicitud) }}s ·
+                          {{ doc.costo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+                        </span>
+                        <span [class]="'badge ' + badge(doc.estado)">
+                          {{ etiqueta(doc.estado) }}
+                        </span>
+                        @if (doc.resultado) {
+                          <span class="documento__resultado">{{ doc.resultado }}</span>
+                        }
+                        @if (doc.error) {
+                          <span class="documento__error">{{ doc.error }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else if (estaCargando(solicitud.codigo)) {
+                  <p class="documentos__aviso">Cargando…</p>
+                } @else {
+                  <p class="documentos__aviso">
+                    No pudimos cargar los archivos. Cierra y vuelve a abrir para reintentar.
+                  </p>
+                }
+              </details>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="vacio">
+        No tienes solicitudes en este estado. Prueba con otro filtro.
+      </p>
+    }
+
+    }
+
+  </div>
+</section>

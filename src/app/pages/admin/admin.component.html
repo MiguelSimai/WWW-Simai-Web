@@ -1,0 +1,193 @@
+<section class="admin">
+  <div class="container">
+
+    <header class="admin__head">
+      <span class="eyebrow">Interno</span>
+      <h1 class="admin__titulo">Administración</h1>
+      <p class="admin__lead">
+        Dar de alta clientes, habilitarles servicios y juntar usuarios bajo una misma cuenta.
+      </p>
+    </header>
+
+    @if (error(); as mensaje) {
+      <p class="admin__error" role="status">{{ mensaje }}</p>
+    }
+
+    <!-- ===== Cuenta nueva ===== -->
+    <form class="nueva card" [formGroup]="formCuenta" (ngSubmit)="crearCuenta()">
+      <label class="campo">
+        <span>Nombre de la empresa</span>
+        <input type="text" formControlName="nombre" placeholder="Acme Créditos" />
+      </label>
+      <button type="submit" class="btn btn--primary">Crear cuenta</button>
+    </form>
+
+    <!-- ===== Cuentas ===== -->
+    <h2 class="admin__seccion">Cuentas</h2>
+
+    @if (cargando()) {
+      <p class="admin__vacio">Cargando…</p>
+    } @else if (!cuentas().length) {
+      <p class="admin__vacio">Todavía no hay cuentas.</p>
+    } @else {
+      <ul class="cuentas">
+        @for (cuenta of cuentas(); track cuenta.id) {
+          <li class="cuenta card">
+            <div class="cuenta__cabecera">
+              <div>
+                <h3 class="cuenta__nombre">{{ cuenta.nombre }}</h3>
+                <p class="cuenta__meta">
+                  {{ cuenta.saldo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }} ·
+                  {{ cuenta.usuarios }} {{ cuenta.usuarios === 1 ? 'usuario' : 'usuarios' }} ·
+                  {{ cuenta.solicitudes }} solicitudes
+                </p>
+              </div>
+              <div class="cuenta__acciones">
+                @if (fusionables(cuenta).length) {
+                  <label class="campo campo--inline">
+                    <span class="sr-only">Fusionar otra cuenta dentro de {{ cuenta.nombre }}</span>
+                    <select #origen (change)="fusionar(cuenta.id, origen.value); origen.value = ''">
+                      <option value="">Absorber cuenta…</option>
+                      @for (c of fusionables(cuenta); track c.id) {
+                        <option [value]="c.id">
+                          {{ c.nombre }} ({{ c.saldo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }},
+                          {{ c.solicitudes }} sol.)
+                        </option>
+                      }
+                    </select>
+                  </label>
+                }
+
+                <button type="button" class="btn btn--secondary" (click)="abrirProceso(cuenta)">
+                  Habilitar servicio
+                </button>
+              </div>
+            </div>
+
+            @if (cuenta.procesos.length) {
+              <ul class="procesos">
+                @for (p of cuenta.procesos; track p.servicio) {
+                  <li class="proceso">
+                    <span class="proceso__servicio">{{ nombreServicio(p.servicio) }}</span>
+                    <span class="proceso__motor">
+                      {{ p.proceso_codigo }} · id {{ p.id_proceso }}
+                      @if (p.plantilla) {
+                        · plantilla {{ p.plantilla }}
+                      } @else {
+                        · sin plantilla
+                      }
+                    </span>
+                    <button
+                      type="button"
+                      class="proceso__quitar"
+                      (click)="quitar(cuenta.id, p.servicio)">
+                      <span class="sr-only">Quitar {{ p.servicio }}</span>
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="cuenta__sin">
+                Sin servicios habilitados: esta cuenta no puede enviar nada todavía.
+              </p>
+            }
+
+            @if (editando() === cuenta.id) {
+              <form class="alta" [formGroup]="formProceso" (ngSubmit)="habilitar(cuenta.id)">
+                <label class="campo">
+                  <span>Servicio</span>
+                  <select
+                    formControlName="servicio"
+                    (change)="alElegirServicio($any($event.target).value)">
+                    @for (s of servicios; track s.id) {
+                      <option [value]="s.id">{{ s.nombre }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label class="campo">
+                  <span>tipo_servicio en el motor</span>
+                  <input type="text" formControlName="tipo_servicio" />
+                </label>
+
+                <label class="campo">
+                  <span>Código del proceso</span>
+                  <input
+                    type="text"
+                    formControlName="proceso_codigo"
+                    placeholder="simai_doc_acme" />
+                </label>
+
+                <label class="campo campo--corto">
+                  <span>id_proceso</span>
+                  <input type="number" formControlName="id_proceso" min="1" />
+                </label>
+
+                <label class="campo">
+                  <span>Plantilla del Excel</span>
+                  <select formControlName="plantilla_id">
+                    <option value="">Genérica</option>
+                    @for (p of plantillas(); track p.id) {
+                      <option [value]="p.id">{{ p.nombre }}</option>
+                    }
+                  </select>
+                </label>
+
+                <div class="alta__acciones">
+                  <button type="submit" class="btn btn--primary">Habilitar</button>
+                  <button type="button" class="btn btn--ghost" (click)="cerrarProceso()">
+                    Cancelar
+                  </button>
+                </div>
+
+                <p class="alta__nota">
+                  Los tres datos del motor tienen que coincidir con su fila en
+                  <code>iagw_proceso</code>, que además debe tener
+                  <code>modo_respuesta_default = async</code>.
+                </p>
+              </form>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <!-- ===== Usuarios ===== -->
+    <h2 class="admin__seccion">Usuarios</h2>
+    <p class="admin__nota">
+      Al entrar por primera vez, cada persona queda en una cuenta propia. Acá se mueven a la
+      de su empresa para que compartan saldo y expedientes.
+    </p>
+
+    @if (usuarios().length) {
+      <ul class="usuarios">
+        @for (u of usuarios(); track u.id) {
+          <li class="usuario">
+            <div class="usuario__quien">
+              <span class="usuario__nombre">{{ u.nombre || u.email }}</span>
+              <span class="usuario__email">{{ u.email }}</span>
+            </div>
+
+            <span class="usuario__cuenta">{{ u.cuenta ?? 'Sin cuenta' }}</span>
+
+            <label class="campo campo--inline">
+              <span class="sr-only">Mover {{ u.email }} a otra cuenta</span>
+              <select #destino (change)="mover(u.id, destino.value)">
+                <option value="">Mover a…</option>
+                @for (c of cuentas(); track c.id) {
+                  @if (c.id !== u.cuenta_id) {
+                    <option [value]="c.id">{{ c.nombre }}</option>
+                  }
+                }
+              </select>
+            </label>
+          </li>
+        }
+      </ul>
+    } @else if (!cargando()) {
+      <p class="admin__vacio">Nadie ha entrado todavía.</p>
+    }
+
+  </div>
+</section>

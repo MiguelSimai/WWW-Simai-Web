@@ -1,0 +1,318 @@
+/* ===================== Tabla de tarifas ===================== */
+
+/* La tabla no se puede apilar sin perder la comparación entre filas:
+   en pantallas angostas se desplaza dentro de su propio contenedor. */
+.tabla-wrap {
+  margin-top: var(--sp-6);
+  overflow-x: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+}
+
+.tarifas {
+  width: 100%;
+  min-width: 40rem;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tarifas th,
+.tarifas td {
+  padding: var(--sp-4) var(--sp-5);
+  vertical-align: middle;
+}
+
+.tarifas thead th {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.tarifas tbody tr + tr {
+  border-top: 1px solid var(--c-border);
+}
+
+.tarifas__serv {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  font-weight: 400;
+}
+
+.tarifas__icono {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 9px;
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  color: var(--c-brand);
+}
+
+.tarifas__nombre {
+  display: block;
+  font-weight: 650;
+}
+
+.tarifas__resumen {
+  display: block;
+  max-width: 46ch;
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+}
+
+.tarifas__num {
+  text-align: right;
+}
+
+.tarifas__precio {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.tarifas__nota {
+  margin-top: var(--sp-5);
+  max-width: 70ch;
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Calculadora ===================== */
+
+.calculadora__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: var(--sp-8);
+  align-items: center;
+}
+
+.calc {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.calc__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--c-border);
+}
+
+.calc__total-label {
+  font-weight: 600;
+  color: var(--c-text-muted);
+}
+
+.calc__total-monto {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--c-brand);
+}
+
+/* ===================== Packs de saldo ===================== */
+
+.packs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+}
+
+.pack {
+  position: relative;
+  display: grid;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--sp-6) var(--sp-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.pack:hover {
+  border-color: var(--c-border-strong);
+  transform: translateY(-2px);
+}
+
+.pack.is-activo {
+  border-color: var(--c-brand);
+  box-shadow: 0 0 0 3px var(--c-brand-soft), var(--shadow-md);
+}
+
+.pack__cinta {
+  position: absolute;
+  top: calc(var(--sp-3) * -1);
+  left: var(--sp-5);
+  padding: 0.15rem 0.7rem;
+  background: var(--c-brand);
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.pack__nombre {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.pack__monto {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.pack__bonus {
+  font-weight: 600;
+  color: var(--c-ok);
+}
+
+.pack__bonus--vacio {
+  font-weight: 400;
+  color: var(--c-text-muted);
+}
+
+.pack__para {
+  margin-top: var(--sp-2);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Contratación ===================== */
+
+.contratar__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: var(--sp-8);
+  align-items: start;
+}
+
+.contratar__resumen {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  max-width: 34rem;
+}
+
+.contratar__resumen li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  color: var(--c-text-muted);
+}
+
+.contratar__resumen strong {
+  color: var(--c-text);
+  font-size: 1.0625rem;
+}
+
+.contratar__bonus {
+  color: var(--c-ok);
+}
+
+.contratar__total {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-border);
+}
+
+.contratar__total strong {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  color: var(--c-brand);
+}
+
+.contratar__form {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.contratar__aviso {
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Preguntas ===================== */
+
+.preguntas {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  max-width: 76ch;
+}
+
+.pregunta {
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+
+.pregunta__titulo {
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pregunta__respuesta {
+  margin-top: var(--sp-3);
+  color: var(--c-text-muted);
+}
+
+/* ===================== Responsive ===================== */
+
+@media (max-width: 980px) {
+  .calculadora__inner,
+  .contratar__inner {
+    grid-template-columns: 1fr;
+    gap: var(--sp-6);
+  }
+
+  .packs {
+    grid-template-columns: 1fr;
+    gap: var(--sp-6);
+  }
+}
+
+/* Quien ya entró no llena datos: sólo confirma con qué cuenta contrata. */
+.contratar__quien {
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  line-height: 1.5;
+}
+
+.contratar__quien span {
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+.contratar__error {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-error-soft);
+  border-left: 3px solid var(--c-error);
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  color: var(--c-error);
+}

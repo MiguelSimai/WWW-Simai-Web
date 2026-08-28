@@ -37,6 +37,15 @@ yarn-error.log
 testem.log
 /typings
 
+# Backend Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+
+# Certificados del proxy corporativo, exportados para pip (ver backend/.venv/pip.ini)
+backend/corp-ca.pem
+
 # System files
 .DS_Store
 Thumbs.db

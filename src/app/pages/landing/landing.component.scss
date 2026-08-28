@@ -1,0 +1,733 @@
+/* ===================== Hero ===================== */
+
+.hero {
+  /* Bloque oscuro: sobre grafito ni el azul ni el verde base contrastan, así
+     que dentro del bloque se cambian por sus variantes para oscuro. Todo lo
+     que hay dentro —incluido el logo— lo hereda. */
+  --c-brand: var(--c-brand-on-dark);
+  --c-accent: var(--c-accent-on-dark);
+  /* Se adapta al alto de la pantalla en vez de ser fijo: en un monitor grande
+     llenaba de aire, y en uno chico empujaba el contenido fuera de vista. */
+  padding-block: clamp(var(--sp-6), 6vh, var(--sp-9));
+  /* Halos del azul y el verde de la marca. Se ven, pero sin llegar al texto:
+     el contraste del contenido se mide contra --c-bg-inverse, y los halos
+     aclaran el fondo, nunca lo oscurecen. */
+  background:
+    radial-gradient(58rem 34rem at 86% -12%, rgba(45, 125, 210, 0.55), transparent 62%),
+    radial-gradient(42rem 28rem at 4% 108%, rgba(140, 198, 63, 0.28), transparent 64%),
+    var(--c-bg-inverse);
+  color: var(--c-text-inverse);
+}
+
+.hero__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: var(--sp-8);
+}
+
+.hero__eyebrow {
+  display: inline-block;
+  margin-bottom: var(--sp-4);
+  padding: 0.3rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-brand);
+}
+
+.hero__title {
+  font-size: clamp(2.1rem, 1.3rem + 3vw, 3.6rem);
+  max-width: 21ch;
+}
+
+.hero__title span {
+  display: block;
+  color: var(--c-brand);
+}
+
+.hero__lead {
+  margin-top: var(--sp-5);
+  max-width: 60ch;
+  font-size: 1.125rem;
+  color: var(--c-text-inverse-muted);
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.hero__note {
+  margin-top: var(--sp-5);
+  font-size: 0.875rem;
+  color: var(--c-text-inverse-muted);
+}
+
+/* ===== Maqueta del panel dentro del hero ===== */
+
+.demo {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.demo__bar {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.demo__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.demo__body {
+  padding: var(--sp-5);
+}
+
+.demo__fase-titulo {
+  display: block;
+  margin-bottom: var(--sp-4);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-inverse-muted);
+}
+
+/* ===== Fase 1: puesta en marcha ===== */
+
+.demo__pasos {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.demo__paso {
+  position: relative;
+  padding-left: 1.9rem;
+  font-size: 0.9375rem;
+  color: var(--c-text-inverse);
+}
+
+/* Check dibujado con bordes: no depende de que la fuente traiga el glifo. */
+.demo__paso::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.36em;
+  width: 12px;
+  height: 7px;
+  border-left: 2px solid var(--c-accent-on-dark);
+  border-bottom: 2px solid var(--c-accent-on-dark);
+  transform: rotate(-45deg);
+}
+
+/* ===== Fase 2: en producción ===== */
+
+.demo__fase--prod {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.demo__code {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.demo__req {
+  color: var(--c-brand-on-dark);
+  font-weight: 650;
+}
+
+.demo__res {
+  margin-bottom: var(--sp-2);
+  color: var(--c-accent-on-dark);
+}
+
+.demo__llave,
+.demo__par {
+  color: var(--c-text-inverse-muted);
+}
+
+.demo__par {
+  padding-left: var(--sp-4);
+}
+
+.demo__campo {
+  color: var(--c-text-inverse);
+}
+
+.demo__consumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.demo__consumo-label {
+  font-size: 0.8125rem;
+  color: var(--c-text-inverse-muted);
+}
+
+.demo__consumo-monto {
+  padding: 0.2rem 0.7rem;
+  background: rgba(140, 198, 63, 0.16);
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  /* Verde para oscuro: es lo que se cobra, y el verde es el color de lo que
+     sale bien. 8.04 de contraste sobre el grafito del hero. */
+  color: var(--c-accent-on-dark);
+  white-space: nowrap;
+}
+
+/* ============ Bloques de texto (Quiénes somos, Visión, Compromiso) ============ */
+
+/* Encabezado a la izquierda y cuerpo a la derecha: el título ancla la sección
+   y los párrafos quedan en una columna de ancho cómodo de leer. */
+.texto__inner,
+.vision__inner,
+.compromiso__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--sp-7);
+  align-items: start;
+}
+
+.texto__cuerpo,
+.vision__cuerpo,
+.compromiso__cuerpo {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.texto__parrafo,
+.vision__parrafo,
+.compromiso__parrafo {
+  max-width: 68ch;
+  font-size: 1.0625rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Visión ===================== */
+
+.vision {
+  /* Bloque oscuro: azul y verde se cambian por sus variantes para oscuro, y
+     todo lo que hay dentro las hereda. */
+  --c-brand: var(--c-brand-on-dark);
+  --c-accent: var(--c-accent-on-dark);
+  padding-block: var(--sp-9);
+  background:
+    radial-gradient(48rem 28rem at 90% 0%, rgba(45, 125, 210, 0.4), transparent 62%),
+    var(--c-bg-inverse);
+  color: var(--c-text-inverse);
+}
+
+.vision__parrafo {
+  color: var(--c-text-inverse-muted);
+}
+
+/* Las dos frases de cierre, una por línea: es un remate y se lee como tal. */
+.vision__cierre {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-left: var(--sp-5);
+  border-left: 3px solid var(--c-accent);
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--c-text-inverse);
+}
+
+/* ===================== Fuentes de información ===================== */
+
+.fuentes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+}
+
+.fuente {
+  padding: var(--sp-5);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+}
+
+.fuente__titulo {
+  font-size: 1.0625rem;
+  color: var(--c-brand);
+}
+
+.fuente__lista {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+
+  li {
+    position: relative;
+    padding-left: 1.4rem;
+  }
+
+  li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c-accent);
+  }
+}
+
+.propuesta__cierre {
+  max-width: 76ch;
+  margin-top: var(--sp-6);
+  font-size: 1.0625rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Soluciones (servicios) ===================== */
+
+.soluciones {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+}
+
+.solucion {
+  padding: var(--sp-6);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  /* Un filo azul a la izquierda: distingue cada servicio sin recargar. */
+  border-left: 4px solid var(--c-brand);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease;
+}
+
+.solucion:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.solucion__cabecera {
+  display: flex;
+  align-items: start;
+  gap: var(--sp-4);
+}
+
+.solucion__icono {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  padding: 12px;
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  color: var(--c-brand);
+}
+
+.solucion__titulo {
+  font-size: 1.25rem;
+}
+
+.solucion__resumen {
+  max-width: 76ch;
+  margin-top: var(--sp-2);
+  color: var(--c-text-muted);
+}
+
+/* Las listas en columnas: capacidades y beneficios lado a lado se comparan
+   mejor que una debajo de la otra. `auto-fit` acomoda los servicios que traen
+   dos bloques y los que traen cuatro. */
+.solucion__bloques {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--c-border);
+}
+
+.bloque__titulo {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.bloque__lista {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: 0.9375rem;
+
+  li {
+    position: relative;
+    padding-left: 1.3rem;
+  }
+
+  /* Check dibujado con bordes: no depende de que la fuente traiga el glifo. */
+  li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.42em;
+    width: 10px;
+    height: 6px;
+    border-left: 2px solid var(--c-accent);
+    border-bottom: 2px solid var(--c-accent);
+    transform: rotate(-45deg);
+  }
+}
+
+/* ===================== Compromiso ===================== */
+
+.compromiso {
+  padding-block: var(--sp-9);
+}
+
+.mision {
+  margin-top: var(--sp-3);
+  padding: var(--sp-5);
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-lg);
+}
+
+.mision__titulo {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-brand);
+}
+
+.mision__texto {
+  margin-top: var(--sp-3);
+  font-size: 1.0625rem;
+  font-weight: 550;
+  color: var(--c-text);
+}
+
+/* ===================== Hero: cierre ===================== */
+
+/* La frase de remate del hero: destacada, pero sin competir con el título. */
+.hero__cierre {
+  max-width: 60ch;
+  margin-top: var(--sp-5);
+  padding-left: var(--sp-4);
+  border-left: 3px solid var(--c-accent);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--c-text-inverse);
+}
+
+/* ===================== Pasos ===================== */
+
+.pasos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+  counter-reset: paso;
+}
+
+.paso {
+  padding-top: var(--sp-5);
+  border-top: 3px solid var(--c-brand);
+}
+
+.paso__num {
+  display: block;
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--c-brand);
+}
+
+.paso__titulo {
+  font-size: 1.0625rem;
+}
+
+.paso__detalle {
+  margin-top: var(--sp-3);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Seguridad ===================== */
+
+.seguridad__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--sp-8);
+  align-items: start;
+}
+
+.garantias {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.garantia {
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.garantia__check {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 7px;
+  background: var(--c-accent-soft);
+  border-radius: 50%;
+  color: var(--c-ok);
+}
+
+.garantia__titulo {
+  font-size: 1rem;
+}
+
+.garantia__detalle {
+  margin-top: var(--sp-1);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+/* ===================== Contacto ===================== */
+
+.contacto__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  gap: var(--sp-8);
+  align-items: start;
+}
+
+.contacto__datos {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+}
+
+.contacto__dato {
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.contacto__dato-icono {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  padding: 10px;
+  background: var(--c-brand-soft);
+  border-radius: var(--radius-md);
+  color: var(--c-brand);
+}
+
+.contacto__dato-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.contacto__dato-valor {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  color: var(--c-text);
+}
+
+a.contacto__dato-valor {
+  color: var(--c-brand);
+}
+
+.contacto__dato-nota {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: 0.9375rem;
+  color: var(--c-text-muted);
+}
+
+.contacto__form {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.contacto__area {
+  resize: vertical;
+  min-height: 8rem;
+  font-family: inherit;
+}
+
+.contacto__aviso {
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}
+
+/* Confirmación tras enviar: ocupa el lugar del formulario. */
+.contacto__ok {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-7) var(--sp-6);
+}
+
+.contacto__ok-icono {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 11px;
+  background: var(--c-accent-soft);
+  border-radius: var(--radius-md);
+  color: var(--c-ok);
+}
+
+.contacto__ok-titulo {
+  font-size: 1.375rem;
+}
+
+.contacto__ok-texto {
+  color: var(--c-text-muted);
+}
+
+.contacto__ok .btn {
+  margin-top: var(--sp-3);
+}
+
+/* ===================== CTA ===================== */
+
+.cta {
+  padding-block: var(--sp-9);
+  border-top: 1px solid var(--c-border);
+}
+
+.cta__inner {
+  text-align: center;
+}
+
+.cta__titulo {
+  font-size: clamp(1.75rem, 1.2rem + 1.8vw, 2.4rem);
+  margin-inline: auto;
+  max-width: 20ch;
+}
+
+.cta__texto {
+  margin: var(--sp-4) auto 0;
+  max-width: 58ch;
+  font-size: 1.0625rem;
+  color: var(--c-text-muted);
+}
+
+.cta__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+/* ===================== Responsive ===================== */
+
+@media (max-width: 980px) {
+  .hero__inner,
+  .seguridad__inner,
+  .contacto__inner {
+    grid-template-columns: 1fr;
+    gap: var(--sp-7);
+  }
+
+  .pasos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .servicios,
+  .ventajas,
+  .pasos {
+    grid-template-columns: 1fr;
+  }
+
+  .servicio {
+    padding: var(--sp-5);
+  }
+
+  .demo__body {
+    padding: var(--sp-4);
+  }
+}
+
+/* Las secciones nuevas pasan a una columna antes que el resto: el encabezado
+   sobre el cuerpo se lee mejor que dos columnas estrechas. */
+@media (max-width: 1080px) {
+  .texto__inner,
+  .vision__inner,
+  .compromiso__inner {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
+  }
+
+  .fuentes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .fuentes {
+    grid-template-columns: 1fr;
+  }
+
+  .solucion {
+    padding: var(--sp-5);
+  }
+
+  .solucion__cabecera {
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .vision__cierre {
+    font-size: 1.125rem;
+  }
+}

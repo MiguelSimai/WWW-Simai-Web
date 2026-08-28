@@ -1,0 +1,292 @@
+<!-- ===================== Encabezado ===================== -->
+<section class="section section--tight">
+  <div class="container">
+    <span class="eyebrow">Precios</span>
+    <h1 class="section-title">Pagas por lo que procesas, nada más</h1>
+    <p class="section-lead">
+      Sin licencias por usuario, sin mínimo mensual y sin contrato anual. Cargas saldo, lo
+      consumes al ritmo que necesites y ves el costo de cada solicitud en tu panel.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== Tarifas ===================== -->
+<section class="section section--tight section--subtle" id="tarifas">
+  <div class="container">
+    <h2 class="section-title">Tarifas por servicio</h2>
+    <p class="section-lead">Valores en pesos chilenos, sin IVA.</p>
+
+    <div class="tabla-wrap">
+      <table class="tarifas">
+        <caption class="sr-only">Tarifa unitaria de cada servicio de SimAI</caption>
+        <thead>
+          <tr>
+            <th scope="col">Servicio</th>
+            <th scope="col">Se cobra por</th>
+            <th scope="col" class="tarifas__num">Precio unitario</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (servicio of servicios; track servicio.id) {
+            <tr>
+              <th scope="row" class="tarifas__serv">
+                <span class="tarifas__icono">
+                  <app-icon [name]="servicio.icono" />
+                </span>
+                <span>
+                  <span class="tarifas__nombre">{{ servicio.nombre }}</span>
+                  <span class="tarifas__resumen">{{ servicio.resumen }}</span>
+                </span>
+              </th>
+              <td>{{ servicio.unidad }}</td>
+              <td class="tarifas__num tarifas__precio">
+                {{ servicio.precio | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="tarifas__nota">
+      Sobre 5.000 unidades mensuales de un mismo servicio, la tarifa baja por tramo de forma
+      automática. No hay que pedirlo ni renegociar nada.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== Calculadora ===================== -->
+<section class="section section--tight" id="calculadora">
+  <div class="container calculadora__inner">
+
+    <div>
+      <span class="eyebrow">Estimación</span>
+      <h2 class="section-title">Calcula lo que te costaría</h2>
+      <p class="section-lead">
+        Elige un servicio y la cantidad que procesarías. Es el mismo cálculo que verás en tu
+        panel: precio unitario por cantidad, sin cargos adicionales.
+      </p>
+    </div>
+
+    <div class="calc card">
+      <div class="field">
+        <label class="field__label" for="calc-servicio">Servicio</label>
+        <select
+          id="calc-servicio"
+          class="field__control"
+          [value]="servicioSel()"
+          (change)="cambiarServicio($event)">
+          @for (servicio of servicios; track servicio.id) {
+            <option [value]="servicio.id">{{ servicio.nombre }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="calc-cantidad">
+          Cantidad ({{ servicioActivo().unidad }}s)
+        </label>
+        <input
+          id="calc-cantidad"
+          class="field__control"
+          type="number"
+          min="0"
+          step="10"
+          [value]="cantidad()"
+          (input)="cambiarCantidad($event)" />
+        <span class="field__hint">
+          A {{ servicioActivo().precio | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+          por {{ servicioActivo().unidad }}.
+        </span>
+      </div>
+
+      <p class="calc__total" aria-live="polite">
+        <span class="calc__total-label">Costo estimado</span>
+        <span class="calc__total-monto">
+          {{ estimado() | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+        </span>
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== Packs de saldo ===================== -->
+<section class="section section--tight section--subtle" id="saldo">
+  <div class="container">
+    <span class="eyebrow">Carga de saldo</span>
+    <h2 class="section-title">Elige con cuánto partir</h2>
+    <p class="section-lead">
+      El saldo no vence y sirve para cualquiera de los cuatro servicios. Puedes recargar
+      cuando quieras desde tu panel.
+    </p>
+
+    <ul class="packs" role="radiogroup" aria-label="Monto de saldo a cargar">
+      @for (pack of packs; track pack.id) {
+        <li>
+          <button
+            type="button"
+            class="pack"
+            role="radio"
+            [class.is-activo]="packSel() === pack.id"
+            [attr.aria-checked]="packSel() === pack.id"
+            (click)="seleccionarPack(pack.id)">
+            @if (pack.destacado) {
+              <span class="pack__cinta">Más elegido</span>
+            }
+
+            <span class="pack__nombre">{{ pack.nombre }}</span>
+            <span class="pack__monto">
+              {{ pack.monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+            </span>
+
+            @if (pack.bonus > 0) {
+              <span class="pack__bonus">
+                + {{ pack.bonus | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }} de regalo
+              </span>
+            } @else {
+              <span class="pack__bonus pack__bonus--vacio">Sin saldo adicional</span>
+            }
+
+            <span class="pack__para">{{ pack.para }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </div>
+</section>
+
+<!-- ===================== Contratación ===================== -->
+<section class="section section--tight" id="contratar">
+  <div class="container contratar__inner">
+
+    <div>
+      <span class="eyebrow">Contratar</span>
+      <h2 class="section-title">Crea tu cuenta y empieza hoy</h2>
+      <p class="section-lead">
+        Te creamos el perfil, cargamos el saldo elegido y quedas listo para enviar tu primer
+        archivo. Sin llamada comercial de por medio.
+      </p>
+
+      <ul class="contratar__resumen">
+        <li>
+          <span>Saldo a cargar</span>
+          <strong>{{ packActivo().monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong>
+        </li>
+        @if (packActivo().bonus > 0) {
+          <li>
+            <span>Saldo de regalo</span>
+            <strong class="contratar__bonus">
+              + {{ packActivo().bonus | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+            </strong>
+          </li>
+        }
+        <li class="contratar__total">
+          <span>Disponible para procesar</span>
+          <strong>
+            {{ packActivo().monto + packActivo().bonus
+               | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+          </strong>
+        </li>
+      </ul>
+    </div>
+
+    <form class="contratar__form card" [formGroup]="formulario" (ngSubmit)="contratar()" novalidate>
+      @if (autenticado()) {
+        <!-- Ya entró con Google: sus datos ya los tenemos, no se los pedimos otra vez. -->
+        <p class="contratar__quien">
+          Contratas como <strong>{{ usuario()?.nombre }}</strong><br />
+          <span>{{ usuario()?.email }}</span>
+        </p>
+      } @else {
+        <div class="field">
+          <label class="field__label" for="nombre">Nombre y apellido</label>
+          <input
+            id="nombre"
+            class="field__control"
+            type="text"
+            autocomplete="name"
+            formControlName="nombre"
+            [class.is-invalid]="enviado() && f.nombre.invalid"
+            [attr.aria-invalid]="enviado() && f.nombre.invalid"
+            [attr.aria-describedby]="enviado() && f.nombre.invalid ? 'error-nombre' : null" />
+          @if (enviado() && f.nombre.invalid) {
+            <span class="field__error" id="error-nombre">
+              Escribe tu nombre (al menos 3 caracteres).
+            </span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="email">Correo corporativo</label>
+          <input
+            id="email"
+            class="field__control"
+            type="email"
+            autocomplete="email"
+            formControlName="email"
+            [class.is-invalid]="enviado() && f.email.invalid"
+            [attr.aria-invalid]="enviado() && f.email.invalid"
+            [attr.aria-describedby]="enviado() && f.email.invalid ? 'error-email' : null" />
+          @if (enviado() && f.email.invalid) {
+            <span class="field__error" id="error-email">Escribe un correo válido.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="empresa">
+            Empresa <span class="field__opt">(opcional)</span>
+          </label>
+          <input
+            id="empresa"
+            class="field__control"
+            type="text"
+            autocomplete="organization"
+            formControlName="empresa" />
+        </div>
+      }
+
+      @if (errorContratar(); as mensaje) {
+        <p class="contratar__error" role="alert">{{ mensaje }}</p>
+      }
+
+      <button type="submit" class="btn btn--primary btn--lg btn--block" [disabled]="procesando()">
+        @if (procesando()) {
+          Acreditando saldo…
+        } @else if (autenticado()) {
+          Cargar {{ packActivo().nombre | lowercase }} a mi cuenta
+        } @else {
+          Continuar con Google y contratar
+        }
+      </button>
+
+      <p class="contratar__aviso">
+        @if (autenticado()) {
+          Aún no hay pasarela de pago: el saldo se acredita de inmediato para que puedas
+          probar el portal completo.
+        } @else {
+          Creamos tu cuenta con Google y vuelves aquí para completar la contratación.
+        }
+      </p>
+    </form>
+
+  </div>
+</section>
+
+<!-- ===================== Preguntas ===================== -->
+<section class="section section--tight section--subtle" id="preguntas">
+  <div class="container">
+    <h2 class="section-title">Preguntas frecuentes</h2>
+
+    <ul class="preguntas">
+      @for (item of preguntas; track item.pregunta) {
+        <li>
+          <details class="pregunta">
+            <summary class="pregunta__titulo">{{ item.pregunta }}</summary>
+            <p class="pregunta__respuesta">{{ item.respuesta }}</p>
+          </details>
+        </li>
+      }
+    </ul>
+  </div>
+</section>

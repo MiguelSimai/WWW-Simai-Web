@@ -1,0 +1,61 @@
+# Configuración de Apache para el sitio (simai.cl).
+#
+# Angular es una aplicación de una sola página: el servidor sólo tiene
+# index.html, y las rutas (/precios, /panel, /admin) las resuelve el navegador.
+# Sin las reglas de abajo, entrar directo a simai.cl/precios daría 404, porque
+# Apache buscaría una carpeta "precios" que no existe.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Todo por HTTPS: la cookie de sesión va con Secure, así que sobre HTTP el
+  # login no funcionaría.
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Los archivos y carpetas que existen se sirven tal cual.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Cualquier otra ruta va a index.html, y Angular decide qué mostrar.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# ── Caché ─────────────────────────────────────────────────────────────────
+# Los .js y .css llevan un hash en el nombre: cuando cambia el contenido cambia
+# el nombre, así que se pueden cachear para siempre sin quedar desactualizados.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/png "access plus 6 months"
+  ExpiresByType image/svg+xml "access plus 6 months"
+  ExpiresByType image/x-icon "access plus 6 months"
+</IfModule>
+
+# index.html nunca se cachea: es el que apunta a los .js con hash nuevo. Si el
+# navegador lo guardara, seguiría pidiendo la versión anterior tras cada
+# despliegue.
+<FilesMatch "index\.html$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </IfModule>
+</FilesMatch>
+
+# ── Compresión ────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ── Cabeceras de seguridad ────────────────────────────────────────────────
+<IfModule mod_headers.c>
+  # Impide que el sitio se cargue dentro de un iframe ajeno (clickjacking).
+  Header always set X-Frame-Options "SAMEORIGIN"
+  # El navegador no adivina el tipo de contenido.
+  Header always set X-Content-Type-Options "nosniff"
+  # No se filtra la URL completa al navegar a otros sitios.
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
