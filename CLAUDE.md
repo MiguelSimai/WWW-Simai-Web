@@ -34,6 +34,8 @@ Lo que ya funciona de punta a punta:
   despacharlos al motor documento por documento
 - **Panel real** — expedientes con su estado, costo y documentos, con polling mientras haya
   algo en proceso
+- **Administración** — `/admin`: alta de cuentas, servicios habilitados, mover usuarios,
+  fusionar cuentas y plantillas de Excel
 
 Lo que sigue pendiente:
 
@@ -49,7 +51,6 @@ Lo que sigue pendiente:
   que el motor procesa hoy (audio, PDF, imágenes). El resto está marcado como no disponible
 - **Sin pantalla de detalle propia.** Los documentos se ven en un desplegable del panel; no
   hay `/solicitud/:codigo` ni descarga del resultado
-- **El backend no está en git.** `git ls-files backend/` no devuelve nada
 
 ## Cuentas: quién contrata
 
@@ -99,8 +100,9 @@ su id—, y después en `/admin` se crea la cuenta y se le apunta ese proceso.
 cuentas.
 
 **Mover un usuario no mueve su saldo ni su historial**: quedan en la cuenta que deja. Para
-consolidar de verdad hay que **fusionar** (`Absorber cuenta…`), que traspasa usuarios, saldo,
-expedientes y movimientos en una transacción, y deja la origen en cero. Es el caso típico de
+consolidar de verdad hay que **fusionar** (`Absorber cuenta…`), que traspasa usuarios, saldo, la
+marca de contratación (`contratado_en`), expedientes y movimientos en una transacción, y deja
+la origen en cero. Es el caso típico de
 alguien que entró por su cuenta, acumuló saldo y expedientes, y después hay que juntarlo con la
 cuenta de su empresa.
 
@@ -273,11 +275,16 @@ Están explicadas en [backend/README.md](backend/README.md); en resumen:
 Sin librería de UI ni de estado: todo es HTML/SCSS propio. Locale `es-CL` registrado en
 [app.config.ts](src/app/app.config.ts), así que `date` y `currency` salen en formato chileno.
 
-**Backend**: FastAPI · psycopg 3 con pool · Authlib (OAuth) · Postgres. `truststore` se inyecta
+**Backend**: FastAPI · psycopg 3 **sin pool** · Authlib (OAuth) · Postgres (Neon). `truststore`
+se inyecta
 **antes** de cualquier import que arme un contexto TLS: hace falta cuando un antivirus con
 inspección web, un proxy corporativo o una VPN firma con su propio certificado raíz — está en el
 almacén del sistema pero nunca en `certifi`, y sin esto las llamadas a Google fallan con
 `CERTIFICATE_VERIFY_FAILED`.
+
+No hay pool de conexiones ni `lifespan`: los dos levantan hilos de fondo, y bajo Passenger esos
+hilos dejan el proceso colgado (ver **Despliegue**). Se abre una conexión por petición, y el
+pooling de verdad lo hace el *pooler* de Neon al que apunta `DATABASE_URL`.
 
 ## Comandos
 
@@ -312,8 +319,10 @@ aplicado**: las bases que lo corrieron no lo repiten y quedarían distintas entr
 
 Las credenciales de Google se crean en <https://console.cloud.google.com/apis/credentials>
 (*ID de cliente de OAuth 2.0 → Aplicación web*), con
-`http://localhost:8000/api/auth/callback/google` como URI de redirección autorizado —
-exacto, o Google rechaza el intercambio.
+`http://localhost:8000/api/auth/retorno` como URI de redirección autorizado — exacto, o Google
+rechaza el intercambio. La ruta se llama `/retorno` y no `/callback/google` a propósito: Chrome
+marcaba la anterior como "Sitio peligroso". Si se renombra, tienen que coincidir los tres
+lugares: la ruta, `GOOGLE_REDIRECT_URI` y Google Cloud Console.
 
 Para verificar si el dev server ya está arriba sin abrir el navegador:
 
@@ -325,6 +334,36 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:4200/
 Nota: `ng serve` escucha solo en IPv6 (`::1`). `localhost` funciona; `127.0.0.1` no.
 Usa `ng serve --host 0.0.0.0` si necesitas IPv4 o acceso desde la red.
 
+## Despliegue
+
+El destino es **hosting compartido con cPanel**: el sitio estático en `simai.cl` y el backend en
+`api.simai.cl` bajo el *Python Selector* (Passenger), contra una base **Neon**. `environment.ts`
+—el de producción— ya apunta a `https://api.simai.cl`.
+
+**Front.** `npm run build` deja el sitio en `dist/portal-solicitudes/browser`; se sube tal cual,
+con [public/.htaccess](public/.htaccess) incluido: fuerza HTTPS —la cookie va con `Secure`, así
+que sobre HTTP no hay login—, manda cualquier ruta desconocida a `index.html` (sin eso, entrar
+directo a `/precios` da un 404 de Apache), cachea los `.js`/`.css` con hash para siempre y nunca
+`index.html`, y agrega las cabeceras de seguridad.
+
+**Backend.** Passenger habla **WSGI** y FastAPI es **ASGI**.
+[passenger_wsgi.py](backend/passenger_wsgi.py) los une con
+[asgi_wsgi.py](backend/asgi_wsgi.py), un adaptador propio: `a2wsgi` deja la petición colgada para
+siempre bajo este Passenger. Los pasos de cPanel —application root, startup file, pip install,
+variables de entorno, restart— están en el docstring de `passenger_wsgi.py`.
+
+**Este Passenger no tolera hilos de fondo**, y eso explica tres decisiones que de otro modo
+parecen arbitrarias: nada de `a2wsgi`, nada de `psycopg_pool` (ver [db.py](backend/app/db.py)) y
+`main.py` sin `lifespan`. Con cualquiera de los tres el proceso arranca colgado: no responde y no
+deja rastro en el log. Si la app deja de arrancar en silencio, ese es el primer sospechoso.
+
+[diagnostico.py](backend/diagnostico.py) se ejecuta desde el panel de cPanel y escribe
+`diagnostico.txt` al lado: dice si el hosting alcanza Neon o si su firewall de salida bloquea el
+puerto de Postgres — la diferencia entre arreglar código y pedirle algo al proveedor.
+
+En un servidor propio nada de esto hace falta: `uvicorn app.main:app` es ASGI nativo, y volver al
+pool de conexiones es cambiar sólo `db.py`.
+
 ## Rutas
 
 | Ruta | Página | Notas |
@@ -334,6 +373,7 @@ Usa `ng serve --host 0.0.0.0` si necesitas IPv4 o acceso desde la red.
 | `/ingresar` | Acceso | Acepta `?volver=` y `?error=sesion-expirada` |
 | `/enviar` | Subida de archivos y carpetas | Protegida por `sesionGuard` |
 | `/panel` | Expedientes del usuario, con sus documentos | Protegida por `sesionGuard` |
+| `/admin` | Administración comercial: cuentas, servicios, usuarios, plantillas | `adminGuard`; sólo `ADMIN_EMAILS` |
 | `**` | → `/` | Reemplazar por un 404 propio cuando exista |
 
 En `/enviar` sólo se ofrecen los servicios con `disponible: true` (ver `SERVICIOS_DISPONIBLES`
@@ -348,7 +388,7 @@ listado: la mayoría de las filas nunca se abre.
 | Método | Ruta | Qué hace |
 |---|---|---|
 | GET | `/api/auth/login/google` | Redirige a Google |
-| GET | `/api/auth/callback/google` | Valida, crea la sesión, deja la cookie y vuelve al portal |
+| GET | `/api/auth/retorno` | Google vuelve aquí: valida, crea la sesión, deja la cookie y vuelve al portal |
 | GET | `/api/auth/me` | Devuelve el usuario, o 401 si no hay sesión |
 | POST | `/api/auth/logout` | Revoca la sesión y borra la cookie |
 | POST | `/api/cuenta/contratar/{pack_id}` | Acredita el saldo del pack (`prueba`, `impulso`, `volumen`) |
@@ -358,10 +398,14 @@ listado: la mayoría de las filas nunca se abre.
 | GET | `/api/solicitudes/excel` | La planilla de resultados de un rango de fechas |
 | POST | `/api/callbacks/expediente` | Recibe el resultado consolidado desde N8N |
 | GET | `/api/salud` | Health check |
-| — | `/api/admin/*` | Cuentas, procesos, usuarios y plantillas (sólo `ADMIN_EMAILS`) |
+| — | `/api/admin/*` | Cuentas, procesos, usuarios, plantillas y catálogo (sólo `ADMIN_EMAILS`) |
 
 Los GET devuelven camelCase, que es lo que consume el TypeScript. Pedir una solicitud ajena
 responde 404, no 403: no se confirma que el código exista.
+
+`GET /api/admin/catalogo` es el catálogo del servidor **para armar el formulario** de la
+administración sin escribir ids a mano; no es el `GET /api/catalogo` público que resolvería la
+duplicación de precios entre front y backend, que sigue pendiente.
 
 El callback lo llama N8N, no el navegador: no pasa por CORS ni por la cookie, se autentica con
 `CALLBACK_TOKEN` comparado con `compare_digest`, y es idempotente porque N8N reintenta. Sin
@@ -399,6 +443,8 @@ src/app/
     auth.mock.ts         Sesión SIMULADA (fuera del bundle de producción)
     api.interceptor.ts   withCredentials + reacción al 401
     sesion.guard.ts      CanActivateFn para /enviar y /panel
+    admin.guard.ts       CanActivateFn para /admin; comodidad, la autorización es del backend
+    admin.service.ts     ÚNICO punto de contacto con /api/admin
     cuenta.service.ts    Contratar pack; recarga la sesión para refrescar el saldo
     solicitudes-api.service.ts  ÚNICO punto de contacto con la API de solicitudes
     solicitudes.service.ts      Expedientes del panel + polling mientras haya algo en curso
@@ -406,15 +452,20 @@ src/app/
     site-header/         Nav + acciones según sesión; menú móvil con signal y cierre con Escape
     site-footer/
   pages/
-    landing/  precios/  ingresar/  enviar/  panel/
+    landing/  precios/  ingresar/  enviar/  panel/  admin/
   ui/
     logo/                <app-logo [conTexto]>: marca, SVG inline
     icon/                <app-icon [name]>: SVG 24×24 de trazo, tipado por IconName
 src/environments/        environment.ts (producción, por defecto) y .development.ts
 src/styles.scss          Tokens de diseño + primitivas globales
+public/.htaccess         Apache: HTTPS, fallback a index.html, caché y cabeceras de seguridad
 backend/
   migraciones/           El modelo de datos, numerado
   migrar.py              Lleva cualquier base al día
+  passenger_wsgi.py      Arranque bajo Passenger (cPanel). Con uvicorn no se usa
+  asgi_wsgi.py           Adaptador ASGI→WSGI propio, sin hilos de fondo
+  diagnostico.py         ¿El hosting alcanza la base? Escribe diagnostico.txt
+  schema.sql             Obsoleto: el modelo se mudó a migraciones/. No se ejecuta
   app/
     main.py              App, CORS con credenciales, SessionMiddleware, truststore
     auth_router.py       Flujo OAuth con Google
@@ -499,7 +550,6 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 
 ## Pendientes conocidos
 
-- **El backend no está en git.** Todo el trabajo del backend existe sólo en disco
 - **Nunca se ha corrido contra el motor real**: falta crear los procesos en IA-ADMIN,
   cargar `cuenta_procesos` con el proceso real de cada cliente, y clonar
   el flujo N8N apuntando su entrega al callback del portal
@@ -519,9 +569,9 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
   diferencias, que es lo que promete el catálogo— lo arma N8N, no el portal. Hoy cada documento
   se procesa por separado
 - El nombre del proyecto Angular sigue siendo `portal-solicitudes` (en `package.json`,
-  `angular.json` y la carpeta de salida). Renombrarlo a `simai` es un cambio aparte
+  `angular.json` y la carpeta de salida), y el `README.md` de la raíz sigue siendo el que generó
+  el Angular CLI. Renombrar y reescribirlos es un cambio aparte
 - Los precios del catálogo son de referencia: ajustarlos antes de publicar
-- `Usuario.empresa` está declarado pero el backend de autenticación aún no lo entrega
 - Falta página 404 propia; hoy cualquier ruta desconocida redirige al home
 - Enlaces de privacidad y términos apuntan a `#`
 - Antes de publicar (lista completa en [backend/README.md](backend/README.md)):

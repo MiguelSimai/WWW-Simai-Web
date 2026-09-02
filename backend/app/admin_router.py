@@ -257,8 +257,9 @@ def fusionar_cuenta(
     cuando alguien entró por su cuenta, acumuló saldo y expedientes, y después
     hay que juntarlo con la cuenta de su empresa.
 
-    Se traspasan usuarios, saldo, solicitudes, documentos (por cascada) y
-    movimientos. Todo en una transacción: o se mueve todo, o no se mueve nada.
+    Se traspasan usuarios, saldo, la marca de contratación, solicitudes,
+    documentos (por cascada) y movimientos. Todo en una transacción: o se
+    mueve todo, o no se mueve nada.
 
     La cuenta origen queda en cero pero no se borra: es el rastro de que
     existió, y borrarla dejaría los movimientos sin referencia.
@@ -289,6 +290,26 @@ def fusionar_cuenta(
             (saldo_origen, destino_id),
         )
         conn.execute("update cuentas set saldo = 0 where id = %s", (datos.origen_id,))
+
+        # `contratado_en` viaja con el saldo. Es la marca de que la cuenta
+        # alguna vez cargó, y es lo que decide si el usuario ve el panel o la
+        # pantalla de contratación: sin esto, la destino recibe la plata pero
+        # sigue pareciendo nueva y se le pide contratar teniendo saldo.
+        # Se queda la fecha más antigua de las dos, que es cuando el cliente
+        # cargó por primera vez.
+        conn.execute(
+            """
+            update cuentas d
+               set contratado_en = least(
+                       coalesce(d.contratado_en, o.contratado_en),
+                       coalesce(o.contratado_en, d.contratado_en))
+              from cuentas o
+             where d.id = %s
+               and o.id = %s
+               and o.contratado_en is not null
+            """,
+            (destino_id, datos.origen_id),
+        )
 
         conn.execute(
             "update usuarios set cuenta_id = %s where cuenta_id = %s",

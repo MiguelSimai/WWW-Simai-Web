@@ -213,7 +213,30 @@
               solicitud de tu panel.
             </p>
           }
+
+          <p class="resumen__linea">
+            <span>Saldo disponible</span>
+            <strong>${{ saldo().toLocaleString('es-CL') }}</strong>
+          </p>
         </div>
+
+        @if (saldoInsuficiente()) {
+          <!--
+            Se avisa, no se bloquea: el servidor valida expediente por
+            expediente, así que con saldo parcial algunos pasan igual. Cortar
+            el envío entero le quitaría al cliente lo que sí podía procesar.
+          -->
+          <p class="resumen__aviso" role="status">
+            @if (estimable()) {
+              El saldo no alcanza para todo este lote.
+            } @else {
+              El saldo no alcanza ni cobrando una {{ servicio().unidad }} por archivo,
+              que es el mínimo posible.
+            }
+            Se enviarán los expedientes que quepan y el resto quedará sin procesar.
+            <a routerLink="/precios">Recargar saldo</a>
+          </p>
+        }
 
         <button
           type="button"

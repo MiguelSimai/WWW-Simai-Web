@@ -116,6 +116,30 @@ export class EnviarComponent {
     () => this.minutosTotales() * this.servicio().precio,
   );
 
+  /** Saldo de la cuenta. Lo comparten todos los usuarios de la empresa. */
+  protected readonly saldo = computed(() => this.auth.usuario()?.saldo ?? 0);
+
+  /**
+   * Piso del costo del lote.
+   *
+   * El servidor cobra como mínimo una unidad por documento —una página, un
+   * minuto—, así que esta cifra nunca queda por encima de lo que se va a
+   * cobrar. Sirve para avisar que el saldo no alcanza sin inventar un total
+   * que en documentos todavía no se puede conocer.
+   */
+  protected readonly costoMinimo = computed(
+    () => this.documentosPorEnviar() * this.servicio().precio,
+  );
+
+  /** El estimado exacto cuando se pudo medir; si no, el piso. */
+  protected readonly costoAComparar = computed(() =>
+    this.estimable() ? this.costoEstimado() : this.costoMinimo(),
+  );
+
+  protected readonly saldoInsuficiente = computed(
+    () => this.documentosPorEnviar() > 0 && this.saldo() < this.costoAComparar(),
+  );
+
   /* ===== Selección de servicio ===== */
 
   protected esElegido(id: ServicioId): boolean {

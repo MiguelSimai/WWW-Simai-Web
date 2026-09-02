@@ -332,6 +332,21 @@
   color: var(--c-text-muted);
 }
 
+.resumen__aviso {
+  max-width: 52ch;
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--c-warn-soft);
+  color: var(--c-warn);
+  font-size: 0.9375rem;
+}
+
+.resumen__aviso a {
+  color: inherit;
+  font-weight: 600;
+}
+
 .final {
   display: grid;
   justify-items: start;
