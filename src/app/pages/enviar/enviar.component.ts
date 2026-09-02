@@ -7,6 +7,17 @@ import { ServicioId } from '../../core/modelos';
 import { SolicitudesApi } from '../../core/solicitudes-api.service';
 import { IconComponent } from '../../ui/icon/icon.component';
 
+/**
+ * Cuántos expedientes se suben a la vez.
+ *
+ * Antes iban de uno en uno, y con 14 carpetas la espera se sumaba completa: el
+ * tiempo se lo lleva la ida y vuelta al servidor, no la CPU del navegador.
+ *
+ * Tres y no más porque cada petición sube archivos: saturar el enlace de
+ * subida del cliente haría que todas terminaran más tarde, no antes.
+ */
+const SUBIDAS_EN_PARALELO = 3;
+
 type EstadoExpediente = 'pendiente' | 'subiendo' | 'listo' | 'error';
 
 /** Un archivo dentro de un expediente. */
@@ -401,11 +412,22 @@ export class EnviarComponent {
     }
 
     this.enviando.set(true);
-    // De a uno: un expediente que falla no arrastra a los demás, y el
-    // progreso por expediente es legible.
-    for (const expediente of this.pendientes()) {
-      await this.subir(expediente);
-    }
+
+    // Cada expediente es una petición independiente, así que se solapan. Uno
+    // que falla no arrastra a los demás: `subir` resuelve igual y queda
+    // marcado con su motivo.
+    const cola = [...this.pendientes()];
+
+    const trabajador = async (): Promise<void> => {
+      for (let siguiente = cola.shift(); siguiente; siguiente = cola.shift()) {
+        await this.subir(siguiente);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: SUBIDAS_EN_PARALELO }, () => trabajador()),
+    );
+
     this.enviando.set(false);
   }
 

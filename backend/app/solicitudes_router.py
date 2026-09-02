@@ -9,14 +9,14 @@ petición y se despacha documento por documento al motor.
 import logging
 import secrets
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
 from . import cuentas, excel, gateway_client, medicion, motor_db
 from .catalogo import servicio_por_id
 from .db import pool
-from .dependencias import sesion_actual
+from .dependencias import conexion, sesion_actual
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/solicitudes", tags=["solicitudes"])
@@ -313,6 +313,7 @@ def _resumir(fila: dict) -> dict:
 @router.post("", status_code=201)
 def crear_solicitud(
     usuario: Annotated[dict, Depends(sesion_actual)],
+    conn: Annotated[Any, Depends(conexion)],
     servicio: Annotated[str, Form()],
     archivos: Annotated[list[UploadFile], File(alias="archivo")],
     numero_cliente: Annotated[str | None, Form()] = None,
@@ -341,11 +342,10 @@ def crear_solicitud(
     if not usuario.get("cuenta_id"):
         raise HTTPException(status_code=403, detail="Tu usuario no tiene una cuenta asociada.")
 
-    with pool.connection() as conn:
-        try:
-            proceso = cuentas.proceso_para(conn, usuario["cuenta_id"], servicio)
-        except cuentas.ServicioNoContratado as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
+    try:
+        proceso = cuentas.proceso_para(conn, usuario["cuenta_id"], servicio)
+    except cuentas.ServicioNoContratado as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     if not archivos:
         raise HTTPException(status_code=422, detail="No llegó ningún archivo.")
@@ -402,67 +402,74 @@ def crear_solicitud(
 
     cuenta_id = usuario["cuenta_id"]
 
-    with pool.connection() as conn:
-        # `for update` sobre la cuenta: dos cargas simultáneas —de la misma
-        # persona o de dos usuarios de la misma empresa— no pueden reservar
-        # cada una contra el mismo saldo.
-        saldo = conn.execute(
-            "select saldo from cuentas where id = %s for update",
-            (cuenta_id,),
-        ).fetchone()["saldo"]
+    # Todo lo que sigue va en la conexión del request. El `commit` explícito
+    # está donde antes cerraba el `with`: la reserva tiene que quedar firme
+    # ANTES de hablar con el motor, porque si el motor falla se compensa con
+    # `_anular` y eso necesita que la reserva exista.
+    #
+    # `for update` sobre la cuenta: dos cargas simultáneas —de la misma persona
+    # o de dos usuarios de la misma empresa— no pueden reservar cada una contra
+    # el mismo saldo.
+    saldo = conn.execute(
+        "select saldo from cuentas where id = %s for update",
+        (cuenta_id,),
+    ).fetchone()["saldo"]
 
-        if saldo < costo_total:
-            raise HTTPException(
-                status_code=402,
-                detail=(
-                    f"Saldo insuficiente: el expediente cuesta ${costo_total:,} "
-                    f"y tienes ${saldo:,}."
-                ).replace(",", "."),
-            )
-
-        solicitud_id = conn.execute(
-            """
-            insert into solicitudes
-                   (codigo, cuenta_id, usuario_id, servicio, numero_cliente,
-                    referencia_motor, unidades, costo)
-                 values (%s, %s, %s, %s, %s, %s, %s, %s)
-              returning id
-            """,
-            (
-                codigo,
-                cuenta_id,
-                # Quién la subió, que es distinto de a quién se le cobra.
-                usuario["id"],
-                servicio,
-                numero_cliente,
-                referencia,
-                unidades_total,
-                costo_total,
-            ),
-        ).fetchone()["id"]
-
-        for doc in documentos:
-            conn.execute(
-                """
-                insert into documentos
-                       (solicitud_id, codigo, archivo, unidades, costo)
-                     values (%s, %s, %s, %s, %s)
-                """,
-                (solicitud_id, doc["codigo"], doc["archivo"], doc["unidades"], doc["costo"]),
-            )
-
-        conn.execute(
-            "update cuentas set saldo = saldo - %s where id = %s",
-            (costo_total, cuenta_id),
+    if saldo < costo_total:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Saldo insuficiente: el expediente cuesta ${costo_total:,} "
+                f"y tienes ${saldo:,}."
+            ).replace(",", "."),
         )
+
+    solicitud_id = conn.execute(
+        """
+        insert into solicitudes
+               (codigo, cuenta_id, usuario_id, servicio, numero_cliente,
+                referencia_motor, unidades, costo)
+             values (%s, %s, %s, %s, %s, %s, %s, %s)
+          returning id
+        """,
+        (
+            codigo,
+            cuenta_id,
+            # Quién la subió, que es distinto de a quién se le cobra.
+            usuario["id"],
+            servicio,
+            numero_cliente,
+            referencia,
+            unidades_total,
+            costo_total,
+        ),
+    ).fetchone()["id"]
+
+    for doc in documentos:
         conn.execute(
             """
-            insert into movimientos_saldo
-                   (cuenta_id, usuario_id, solicitud_id, tipo, monto, detalle)
-                 values (%s, %s, %s, 'reserva', %s, %s)
+            insert into documentos
+                   (solicitud_id, codigo, archivo, unidades, costo)
+                 values (%s, %s, %s, %s, %s)
             """,
-            (cuenta_id, usuario["id"], solicitud_id, -costo_total, f"Expediente {codigo}"),
+            (solicitud_id, doc["codigo"], doc["archivo"], doc["unidades"], doc["costo"]),
         )
+
+    conn.execute(
+        "update cuentas set saldo = saldo - %s where id = %s",
+        (costo_total, cuenta_id),
+    )
+    conn.execute(
+        """
+        insert into movimientos_saldo
+               (cuenta_id, usuario_id, solicitud_id, tipo, monto, detalle)
+             values (%s, %s, %s, 'reserva', %s, %s)
+        """,
+        (cuenta_id, usuario["id"], solicitud_id, -costo_total, f"Expediente {codigo}"),
+    )
+
+    # La reserva queda firme acá, y con eso se libera el lock de la cuenta.
+    conn.commit()
 
     # ── 3. Registrar el expediente para que N8N lo consolide ─────────────────
     # Sin esta fila, N8N nunca sabe que el expediente está completo y el
@@ -499,10 +506,14 @@ def crear_solicitud(
             # su motivo y el resto sigue. Su costo se devuelve al cerrar.
             logger.warning("Documento %s rechazado: %s", doc["archivo"], exc)
             fallados.append(doc["codigo"])
-            _marcar_error(doc["codigo"], str(exc))
+            _marcar_error(conn, doc["codigo"], str(exc))
             continue
 
-        _guardar_correlation(doc["codigo"], correlation_id)
+        _guardar_correlation(conn, doc["codigo"], correlation_id)
+
+    # Un solo commit para todos los documentos. Antes cada uno abría su propia
+    # conexión: con cuatro documentos eran cuatro aperturas de 1,6 s.
+    conn.commit()
 
     # Si el motor rechazó todo, no hay nada que esperar: se cierra en error y
     # se devuelve la reserva completa.
@@ -524,24 +535,24 @@ def crear_solicitud(
     return {"codigo": codigo, "estado": "procesando"}
 
 
-def _guardar_correlation(codigo_documento: str, correlation_id: str) -> None:
-    with pool.connection() as conn:
-        conn.execute(
-            "update documentos set correlation_id = %s where codigo = %s",
-            (correlation_id, codigo_documento),
-        )
+def _guardar_correlation(conn, codigo_documento: str, correlation_id: str) -> None:
+    """No hace commit: lo hace el llamador, una vez por expediente."""
+    conn.execute(
+        "update documentos set correlation_id = %s where codigo = %s",
+        (correlation_id, codigo_documento),
+    )
 
 
-def _marcar_error(codigo_documento: str, detalle: str) -> None:
-    with pool.connection() as conn:
-        conn.execute(
-            """
-            update documentos
-               set estado = 'error', error = %s, cerrado_en = now()
-             where codigo = %s
-            """,
-            (detalle[:500], codigo_documento),
-        )
+def _marcar_error(conn, codigo_documento: str, detalle: str) -> None:
+    """No hace commit: lo hace el llamador, una vez por expediente."""
+    conn.execute(
+        """
+        update documentos
+           set estado = 'error', error = %s, cerrado_en = now()
+         where codigo = %s
+        """,
+        (detalle[:500], codigo_documento),
+    )
 
 
 def _anular(

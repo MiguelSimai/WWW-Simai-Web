@@ -371,9 +371,24 @@ almacén del sistema pero nunca en `certifi`, y sin esto las llamadas a Google f
 No hay pool de conexiones ni `lifespan`: los dos levantan hilos de fondo, y bajo Passenger esos
 hilos dejan el proceso colgado (ver **Despliegue**). Se abre una conexión por petición.
 
-Con Neon eso no se notaba, porque su *pooler* amortiguaba. **Azure no trae nada equivalente
-encendido**, así que hoy cada petición paga el saludo TCP+TLS completo. Habilitar el PgBouncer
-integrado (parámetro `pgbouncer.enabled`, puerto 6432) es la mejora pendiente más concreta.
+**Abrir esa conexión cuesta ~1.630 ms** —TCP, TLS y autenticación contra Azure—, contra ~250 ms
+de una consulta sobre una ya abierta. Medido, no estimado. Con Neon no se notaba porque su
+*pooler* amortiguaba; Azure no trae nada equivalente encendido.
+
+De ahí que la conexión sea **una por petición y compartida por todo el request**, vía la
+dependencia `conexion()` de [dependencias.py](backend/app/dependencias.py). FastAPI cachea las
+dependencias, así que todas las capas reciben la misma. Antes cada una abría la suya y el envío
+de un expediente de cuatro documentos pagaba **siete aperturas —unos 11 segundos—** antes de
+hacer nada útil: la sesión, el lookup del proceso, la reserva, y una por documento en
+`_guardar_correlation`.
+
+Al usar una sola conexión para todo el request, los `commit` pasan a ser explícitos. Hay dos en
+`crear_solicitud` y su ubicación importa: el primero deja la reserva firme **antes** de hablar
+con el motor, porque si el motor falla se compensa con `_anular` —que abre su propia conexión— y
+eso necesita que la reserva exista y que el lock de la cuenta ya esté liberado.
+
+PgBouncer no resuelve esto: agrupa conexiones del lado del servidor, pero el cliente sigue
+pagando el TCP+TLS completo en cada una. Ayudaría algo, no es la mejora principal.
 
 ## Comandos
 
@@ -684,6 +699,11 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
   por los nombres más probables, porque los `schema_salida` de los procesos SimAI no existen
   todavía. Al fijarlos, es el único módulo a tocar
 - **Dos copias del catálogo** (front y backend) que hay que mantener sincronizadas a mano
+- **No se puede ver el portal como un cliente.** Útil para reproducir un error en el
+  renderizado con sus datos. Si se implementa, tiene que ser **de sólo lectura**: entrar como
+  el cliente y subir un expediente le cobraría plata de verdad, así que el backend debe
+  rechazar las mutaciones —no basta con esconder botones—, más banner permanente en pantalla,
+  registro de quién suplantó a quién, y expiración corta
 - **No hay invitaciones**: cualquiera con cuenta de Google puede registrarse. Queda sin acceso a
   nada —cuenta propia y vacía— pero queda registrado, y hay que habilitarlo desde `/admin`
 - Sin pantalla `/solicitud/:codigo` ni descarga del resultado
@@ -703,8 +723,10 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 - Los precios del catálogo son de referencia: ajustarlos antes de publicar
 - Falta página 404 propia; hoy cualquier ruta desconocida redirige al home
 - Enlaces de privacidad y términos apuntan a `#`
-- **Sin PgBouncer.** Azure no lo trae encendido y `db.py` no tiene pool, así que cada petición
-  paga el saludo TCP+TLS. Se habilita con el parámetro `pgbouncer.enabled` y el puerto 6432
+- **La base está lejos.** ~250 ms por consulta y ~1,6 s por conexión nueva, porque está en una
+  región de EE.UU. y el tráfico sale de Chile. Ya se usa una sola conexión por petición, así que
+  lo que queda es estructural: mover la base a una región más cercana (Brasil bajaría el RTT a
+  ~50 ms) o el backend a Azure. PgBouncer ayudaría poco: el TCP+TLS del cliente no lo evita
 - **Firewall de Azure por revisar.** El hosting conecta sin que su IP esté autorizada
   explícitamente, lo que sugiere una regla demasiado amplia. Hay que dejar sólo
   `208.91.188.116` y la IP de desarrollo

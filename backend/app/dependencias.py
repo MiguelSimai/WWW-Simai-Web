@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any, Iterator
 
 from fastapi import Depends, HTTPException, Request
 
@@ -7,7 +7,28 @@ from .config import config
 from .db import pool
 
 
-def sesion_actual(request: Request) -> dict:
+def conexion() -> Iterator[Any]:
+    """
+    UNA conexión por petición, compartida por todo el request.
+
+    Abrir una conexión contra Azure cuesta ~1,6 s —TCP, TLS y autenticación—
+    mientras que una consulta sobre una ya abierta cuesta ~250 ms. Con cada
+    capa abriendo la suya, el envío de un expediente de cuatro documentos
+    pagaba siete aperturas: unos 11 segundos antes de hacer nada útil.
+
+    FastAPI cachea las dependencias por petición, así que todos los que pidan
+    `conexion` reciben la misma. No hay pool ni hilos de fondo: sigue siendo
+    una conexión que nace y muere con el request, que es lo único que Passenger
+    tolera (ver db.py).
+    """
+    with pool.connection() as conn:
+        yield conn
+
+
+def sesion_actual(
+    request: Request,
+    conn: Annotated[Any, Depends(conexion)],
+) -> dict:
     """
     Usuario dueño de la sesión, o 401 si no hay.
 
@@ -15,8 +36,7 @@ def sesion_actual(request: Request) -> dict:
     contratado_en. El saldo que trae es del momento de la consulta, así que
     para cobrar hay que releerlo con el registro bloqueado.
     """
-    with pool.connection() as conn:
-        usuario = sesiones.usuario_de(conn, request.cookies.get(sesiones.COOKIE))
+    usuario = sesiones.usuario_de(conn, request.cookies.get(sesiones.COOKIE))
 
     if usuario is None:
         raise HTTPException(status_code=401, detail="Sin sesión")
