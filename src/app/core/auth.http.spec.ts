@@ -9,6 +9,7 @@ describe('AuthHttp', () => {
   let http: HttpTestingController;
 
   const URL_ME = `${environment.apiUrl}/api/auth/me`;
+  const URL_PROVEEDORES = `${environment.apiUrl}/api/auth/proveedores`;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -28,6 +29,7 @@ describe('AuthHttp', () => {
       nombre: 'Ana',
       contratado: true,
     });
+    http.expectOne(URL_PROVEEDORES).flush({ proveedores: ['google'] });
     await cargando;
 
     expect(auth.autenticado()).toBeTrue();
@@ -41,9 +43,40 @@ describe('AuthHttp', () => {
       { detail: 'Sin sesión' },
       { status: 401, statusText: 'Unauthorized' },
     );
+    http.expectOne(URL_PROVEEDORES).flush({ proveedores: ['google'] });
     await cargando;
 
     expect(auth.autenticado()).toBeFalse();
+  });
+
+  it('ofrece los proveedores que habilita el servidor', async () => {
+    const cargando = auth.cargarSesion();
+
+    http.expectOne(URL_ME).flush(
+      { detail: 'Sin sesión' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    http.expectOne(URL_PROVEEDORES).flush({ proveedores: ['google', 'microsoft'] });
+    await cargando;
+
+    expect(auth.proveedores()).toEqual(['google', 'microsoft']);
+  });
+
+  /**
+   * Degradar a Google y no a una lista vacía: si la consulta falla, dejar la
+   * pantalla de ingreso sin botones impediría entrar a quien sí podía.
+   */
+  it('se queda con Google si no puede consultar los proveedores', async () => {
+    const cargando = auth.cargarSesion();
+
+    http.expectOne(URL_ME).flush(
+      { detail: 'Sin sesión' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    http.expectOne(URL_PROVEEDORES).error(new ProgressEvent('error'));
+    await cargando;
+
+    expect(auth.proveedores()).toEqual(['google']);
   });
 
   /**

@@ -1,5 +1,5 @@
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -19,6 +19,31 @@ oauth.register(
     # PKCE: sin esto, alguien que intercepte el `code` puede canjearlo.
     client_kwargs={"scope": "openid email profile", "code_challenge_method": "S256"},
 )
+
+# Microsoft Entra ID. Se registra sólo si hay credenciales: el portal tiene que
+# arrancar igual mientras la app no esté dada de alta.
+#
+# Se usa el endpoint `organizations` y no `common` a propósito: habilita a
+# cualquier empresa con Microsoft 365 —que es el mercado— y deja fuera las
+# cuentas personales de Microsoft, cuyo correo no lo respalda ninguna
+# organización. Importa porque más abajo el correo corporativo se da por
+# verificado.
+if config.microsoft_habilitado:
+    oauth.register(
+        name="microsoft",
+        server_metadata_url=(
+            "https://login.microsoftonline.com/organizations/v2.0"
+            "/.well-known/openid-configuration"
+        ),
+        client_id=config.microsoft_client_id,
+        client_secret=config.microsoft_client_secret,
+        client_kwargs={"scope": "openid email profile", "code_challenge_method": "S256"},
+    )
+
+# Tenant con que llegan las cuentas personales de Microsoft. `organizations` no
+# debería dejarlas pasar, pero se verifica igual: acá el correo se trata como
+# verificado, y el de una cuenta personal no lo respalda nadie.
+TENANT_PERSONAL = "9188040d-6c67-4c5b-b112-36a304b66dad"
 
 
 def _poner_cookie(respuesta: Response, token: str) -> None:
@@ -45,20 +70,91 @@ def _ruta_interna(destino: str) -> bool:
     return destino.startswith("/") and not destino.startswith("//")
 
 
+def _identidad(proveedor: str, claims: dict) -> tuple[str | None, str | None, bool]:
+    """
+    Saca (sujeto, email, email_verificado) de los claims.
+
+    Cada proveedor los entrega distinto, y esa diferencia se resuelve acá para
+    que el resto del flujo sea idéntico.
+    """
+    sujeto = claims.get("sub")
+
+    if proveedor == "microsoft":
+        # Entra no manda `email_verified`, y `email` es un claim opcional que
+        # puede no venir. El UPN de `preferred_username` sí está siempre.
+        email = claims.get("email") or claims.get("preferred_username")
+        # El correo de una cuenta corporativa vive en un dominio que la
+        # organización verificó ante Microsoft, así que darlo por verificado es
+        # más sólido que confiar en un `email_verified` ajeno. Lo que no vale es
+        # una cuenta personal, y eso se comprueba por el tenant.
+        tenant = claims.get("tid")
+        return sujeto, email, bool(tenant) and tenant != TENANT_PERSONAL
+
+    return sujeto, claims.get("email"), bool(claims.get("email_verified"))
+
+
+@router.get("/proveedores")
+def proveedores():
+    """
+    Con qué se puede entrar hoy.
+
+    El front pinta un botón por cada uno en vez de tenerlos fijos, así no
+    ofrece lo que el servidor no tiene configurado.
+    """
+    lista = ["google"]
+    if config.microsoft_habilitado:
+        lista.append("microsoft")
+    return {"proveedores": lista}
+
+
+def _arrancar(request: Request, proveedor: str) -> None:
+    """
+    Guarda en la sesión temporal a dónde volver y con quién se está entrando.
+
+    El proveedor va en la sesión y no en el path del retorno: ver el porqué en
+    el docstring de `retorno()`.
+    """
+    volver = request.query_params.get("volver", "/panel")
+    request.session["volver"] = volver if _ruta_interna(volver) else "/panel"
+    request.session["proveedor"] = proveedor
+
+
 @router.get("/login/google")
 async def login_google(request: Request):
     """Arranca el flujo. Authlib guarda `state` y `nonce` en la sesión temporal."""
-    volver = request.query_params.get("volver", "/panel")
-    request.session["volver"] = volver if _ruta_interna(volver) else "/panel"
+    _arrancar(request, "google")
 
     return await oauth.google.authorize_redirect(request, config.google_redirect_uri)
 
 
-@router.get("/retorno")
-async def callback_google(request: Request):
+@router.get("/login/microsoft")
+async def login_microsoft(request: Request):
     """
-    Google vuelve aquí con el `code`. Authlib lo canjea y valida la firma del
-    id_token, el emisor, la audiencia y el nonce. Si algo no cuadra, revienta.
+    Lo mismo contra Entra ID, para clientes con Microsoft 365.
+
+    Responde 404 si no hay credenciales configuradas, en vez de fallar con un
+    error del servidor: sin la app dada de alta en Entra, esta ruta no existe.
+    """
+    if not config.microsoft_habilitado:
+        raise HTTPException(status_code=404, detail="Proveedor no disponible")
+
+    _arrancar(request, "microsoft")
+
+    return await oauth.microsoft.authorize_redirect(request, config.microsoft_redirect_uri)
+
+
+@router.get("/retorno")
+async def retorno(request: Request):
+    """
+    El proveedor vuelve aquí con el `code`. Authlib lo canjea y valida la firma
+    del id_token, el emisor, la audiencia y el nonce. Si algo no cuadra,
+    revienta.
+
+    **Es un solo retorno para todos los proveedores**, y cuál fue lo dice
+    `proveedor` en la sesión temporal, no el path. Dos motivos: hay un único URI
+    de redirección que registrar en cada consola —ya nos costó un
+    `redirect_uri_mismatch` tener dos nombres— y se conserva el path neutro, que
+    es lo que se explica abajo.
 
     La ruta se llama `/retorno` y no `/callback/google` por un motivo concreto:
     Chrome marcaba la URL anterior como "Sitio peligroso". No había ninguna
@@ -77,14 +173,21 @@ async def callback_google(request: Request):
     tres tienen que coincidir carácter por carácter o Google rechaza el login
     con `redirect_uri_mismatch`.
     """
+    proveedor = request.session.pop("proveedor", "google")
+    cliente = oauth.create_client(proveedor)
+
+    # Sin cliente registrado no hay nada que canjear: pasa si alguien llega a
+    # esta URL a mano, o si se quitaron las credenciales a mitad de un login.
+    if cliente is None:
+        return RedirectResponse(f"{config.frontend_url}/ingresar?error=oauth")
+
     try:
-        token = await oauth.google.authorize_access_token(request)
+        token = await cliente.authorize_access_token(request)
     except OAuthError:
         return RedirectResponse(f"{config.frontend_url}/ingresar?error=oauth")
 
     claims = token.get("userinfo") or {}
-    sujeto = claims.get("sub")
-    email = claims.get("email")
+    sujeto, email, email_verificado = _identidad(proveedor, claims)
 
     if not sujeto or not email:
         return RedirectResponse(f"{config.frontend_url}/ingresar?error=incompleto")
@@ -93,11 +196,11 @@ async def callback_google(request: Request):
         with pool.connection() as conn:
             usuario = usuarios.enlazar_o_crear(
                 conn,
-                proveedor="google",
+                proveedor=proveedor,
                 sujeto=sujeto,
                 email=email,
                 nombre=claims.get("name") or email.split("@")[0],
-                email_verificado=bool(claims.get("email_verified")),
+                email_verificado=email_verificado,
             )
             return sesiones.crear(
                 conn,

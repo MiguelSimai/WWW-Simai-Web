@@ -2,13 +2,17 @@ import { Component, computed, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AUTH } from '../../core/auth';
+import { ProveedorAuth } from '../../core/modelos';
 import { LogoComponent } from '../../ui/logo/logo.component';
 
+// Sin nombrar al proveedor: el error puede venir de cualquiera de ellos, y el
+// backend no distingue cuál en el código que devuelve.
 const MENSAJES: Readonly<Record<string, string>> = {
   'sesion-expirada': 'Tu sesión expiró por seguridad. Vuelve a entrar para continuar.',
-  oauth: 'No pudimos completar el ingreso con Google. Inténtalo otra vez.',
-  incompleto: 'Google no entregó los datos necesarios para identificarte.',
-  'correo-no-verificado': 'Tu correo no está verificado en Google, así que no podemos enlazarlo.',
+  oauth: 'No pudimos completar el ingreso. Inténtalo otra vez.',
+  incompleto: 'Tu proveedor no entregó los datos necesarios para identificarte.',
+  'correo-no-verificado':
+    'Tu correo no está verificado con tu proveedor, así que no podemos enlazarlo.',
 };
 
 @Component({
@@ -23,6 +27,9 @@ export class IngresarComponent {
 
   protected readonly simulada = environment.authSimulada;
 
+  /** Con qué se puede entrar. Lo decide el servidor, no esta pantalla. */
+  protected readonly proveedores = this.auth.proveedores;
+
   /** Ruta que el guard interrumpió, para retomarla tras entrar. */
   private readonly volver = this.ruta.snapshot.queryParamMap.get('volver') ?? '/panel';
 
@@ -32,7 +39,7 @@ export class IngresarComponent {
     return codigo ? (MENSAJES[codigo] ?? 'No pudimos completar el ingreso.') : null;
   });
 
-  protected entrar(): void {
-    this.auth.irALogin(this.volver);
+  protected entrar(proveedor: ProveedorAuth): void {
+    this.auth.irALogin(this.volver, proveedor);
   }
 }

@@ -2,14 +2,18 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { AUTH, Auth } from '../../core/auth';
+import { ProveedorAuth } from '../../core/modelos';
 import { IngresarComponent } from './ingresar.component';
 
 /** Doble de sesión: sólo nos interesa a dónde manda el botón. */
-function authDoble(): Auth & { irALogin: jasmine.Spy } {
+function authDoble(
+  proveedores: readonly ProveedorAuth[] = ['google'],
+): Auth & { irALogin: jasmine.Spy } {
   const usuario = signal(null);
   return {
     usuario: usuario.asReadonly(),
     autenticado: signal(false).asReadonly(),
+    proveedores: signal(proveedores).asReadonly(),
     cargarSesion: () => Promise.resolve(),
     listo: () => Promise.resolve(),
     irALogin: jasmine.createSpy('irALogin'),
@@ -18,8 +22,11 @@ function authDoble(): Auth & { irALogin: jasmine.Spy } {
   } as unknown as Auth & { irALogin: jasmine.Spy };
 }
 
-async function montar(params: Record<string, string> = {}) {
-  const auth = authDoble();
+async function montar(
+  params: Record<string, string> = {},
+  proveedores: readonly ProveedorAuth[] = ['google'],
+) {
+  const auth = authDoble(proveedores);
 
   await TestBed.configureTestingModule({
     imports: [IngresarComponent],
@@ -51,6 +58,23 @@ describe('IngresarComponent', () => {
     expect(boton?.textContent).toContain('Continuar con Google');
   });
 
+  it('no ofrece Microsoft si el servidor no lo habilita', async () => {
+    const { html } = await montar();
+
+    expect(html.querySelector('.btn--microsoft')).toBeNull();
+  });
+
+  it('ofrece los dos proveedores cuando ambos están habilitados', async () => {
+    const { html, auth } = await montar({}, ['google', 'microsoft']);
+
+    expect(html.querySelector('.btn--google')).toBeTruthy();
+    expect(html.querySelector('.btn--microsoft')?.textContent)
+      .toContain('Continuar con Microsoft');
+
+    (html.querySelector('.btn--microsoft') as HTMLButtonElement).click();
+    expect(auth.irALogin).toHaveBeenCalledWith('/panel', 'microsoft');
+  });
+
   it('ya no pide correo ni contraseña', async () => {
     const { html } = await montar();
 
@@ -62,14 +86,14 @@ describe('IngresarComponent', () => {
     const { html, auth } = await montar({ volver: '/panel' });
     (html.querySelector('.btn--google') as HTMLButtonElement).click();
 
-    expect(auth.irALogin).toHaveBeenCalledWith('/panel');
+    expect(auth.irALogin).toHaveBeenCalledWith('/panel', 'google');
   });
 
   it('vuelve al panel por defecto si no hay ruta pendiente', async () => {
     const { html, auth } = await montar();
     (html.querySelector('.btn--google') as HTMLButtonElement).click();
 
-    expect(auth.irALogin).toHaveBeenCalledWith('/panel');
+    expect(auth.irALogin).toHaveBeenCalledWith('/panel', 'google');
   });
 
   it('explica por qué falló el ingreso', async () => {

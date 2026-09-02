@@ -37,6 +37,7 @@ describe('PreciosComponent', () => {
           useValue: {
             usuario: signal({ id: 'u-1', email: 'ana@acme.cl', nombre: 'Ana' }).asReadonly(),
             autenticado: autenticado.asReadonly(),
+            proveedores: signal(['google']).asReadonly(),
             cargarSesion: () => Promise.resolve(),
     listo: () => Promise.resolve(),
             irALogin,
@@ -117,7 +118,7 @@ describe('PreciosComponent', () => {
       .dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
-    expect(irALogin).toHaveBeenCalledWith('/precios');
+    expect(irALogin).toHaveBeenCalledWith('/precios', 'google');
     expect(contratar).not.toHaveBeenCalled();
   });
 

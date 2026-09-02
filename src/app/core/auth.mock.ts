@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Auth } from './auth';
-import { Usuario } from './modelos';
+import { ProveedorAuth, Usuario } from './modelos';
 
 const CLAVE_SESION = 'simai.sesion';
 
@@ -20,6 +20,9 @@ export class AuthMock implements Auth {
   readonly usuario = this._usuario.asReadonly();
   readonly autenticado = computed(() => this._usuario() !== null);
 
+  // Los dos, para poder ver la pantalla de ingreso completa sin backend.
+  readonly proveedores = signal<readonly ProveedorAuth[]>(['google', 'microsoft']).asReadonly();
+
   /** La sesión simulada se lee del navegador: nunca hay nada que esperar. */
   listo(): Promise<void> {
     return Promise.resolve();
@@ -29,7 +32,7 @@ export class AuthMock implements Auth {
     this._usuario.set(this.leer());
   }
 
-  irALogin(volver = '/panel'): void {
+  irALogin(volver = '/panel', _proveedor: ProveedorAuth = 'google'): void {
     const usuario: Usuario = {
       id: 'demo-0001',
       email: 'ana.perez@acme.cl',

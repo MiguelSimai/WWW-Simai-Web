@@ -2,6 +2,13 @@ import { IconName } from '../ui/icon/icon.component';
 
 export type ServicioId = 'transcripcion' | 'documentos' | 'conversaciones' | 'automatizacion';
 
+/**
+ * Con qué se puede iniciar sesión. Qué proveedores están activos lo decide el
+ * servidor —dependen de credenciales que pueden no estar configuradas—, así
+ * que el front los pide en vez de tenerlos fijos.
+ */
+export type ProveedorAuth = 'google' | 'microsoft';
+
 /** Servicio del catálogo, con su tarifa por uso. */
 export interface Servicio {
   readonly id: ServicioId;

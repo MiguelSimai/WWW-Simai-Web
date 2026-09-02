@@ -55,6 +55,24 @@
   background: var(--c-bg-subtle);
 }
 
+/* Microsoft usa el mismo tratamiento: blanco con borde, como pide su marca. */
+.btn--microsoft {
+  margin-top: var(--sp-3);
+  background: var(--c-surface);
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+.btn--microsoft:hover {
+  border-color: var(--c-text-muted);
+  background: var(--c-bg-subtle);
+}
+
+/* Cuando es el único proveedor, no hay nada arriba de lo que separarse. */
+.btn--microsoft:first-of-type {
+  margin-top: var(--sp-6);
+}
+
 .acceso__g {
   width: 20px;
   height: 20px;

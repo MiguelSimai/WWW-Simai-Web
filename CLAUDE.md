@@ -225,8 +225,38 @@ falla ruidosamente.
 
 ## Autenticación
 
-El navegador **nunca** recibe un token de Google: solo una cookie de sesión `httpOnly` que
+El navegador **nunca** recibe un token del proveedor: solo una cookie de sesión `httpOnly` que
 JavaScript no puede leer. Para saber quién eres, el front se lo pregunta al servidor.
+
+**Hay dos proveedores, y `identidades` los soporta sin cambios de esquema** — su PK es
+(`proveedor`, `sujeto`), y `enlazar_o_crear()` recibe el proveedor como parámetro. Un mismo
+usuario puede tener dos identidades apuntando a su `usuario_id`: entra con Google o con
+Microsoft y es la misma persona, misma cuenta, mismo saldo.
+
+| Proveedor | Para quién | Estado |
+|---|---|---|
+| Google | Gmail y Google Workspace | Activo |
+| Microsoft Entra ID | Empresas con Microsoft 365 — el mercado objetivo | Requiere credenciales |
+
+Microsoft se registra en *Portal Azure → Microsoft Entra ID → App registrations*, como
+**multitenant**: así entra cualquier empresa sin configurar nada por cliente. Si
+`MICROSOFT_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI` están vacías el proveedor no existe —
+`/api/auth/login/microsoft` responde 404 y `/api/auth/proveedores` no lo lista—, así que el
+portal arranca igual sin la app dada de alta.
+
+Tres detalles de Entra que no son obvios y están resueltos en `_identidad()`:
+
+- Se usa el endpoint **`organizations`**, no `common`: deja fuera las cuentas personales de
+  Microsoft, cuyo correo no respalda ninguna organización
+- **Entra no manda `email_verified`.** El correo corporativo se da por verificado porque vive en
+  un dominio que la organización verificó ante Microsoft — más sólido que confiar en el claim de
+  un tercero. Que no sea una cuenta personal se comprueba por el `tid`
+- **`email` es un claim opcional** y puede no venir; el UPN de `preferred_username` sí está
+  siempre
+
+**Un solo `/api/auth/retorno` para todos.** Cuál proveedor fue lo dice la sesión temporal, no el
+path: hay un único URI de redirección que registrar en cada consola, y se conserva el path neutro
+(el porqué está en el docstring de `retorno()`).
 
 El front tiene dos implementaciones tras la interfaz [core/auth.ts](src/app/core/auth.ts),
 inyectadas por el token `AUTH`:
@@ -414,8 +444,10 @@ listado: la mayoría de las filas nunca se abre.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
+| GET | `/api/auth/proveedores` | Con qué se puede entrar hoy. El front pinta un botón por cada uno |
 | GET | `/api/auth/login/google` | Redirige a Google |
-| GET | `/api/auth/retorno` | Google vuelve aquí: valida, crea la sesión, deja la cookie y vuelve al portal |
+| GET | `/api/auth/login/microsoft` | Redirige a Entra ID. 404 si no hay credenciales |
+| GET | `/api/auth/retorno` | Retorno **compartido**: valida, crea la sesión, deja la cookie y vuelve al portal |
 | GET | `/api/auth/me` | Devuelve el usuario, o 401 si no hay sesión |
 | POST | `/api/auth/logout` | Revoca la sesión y borra la cookie |
 | POST | `/api/cuenta/contratar/{pack_id}` | Acredita el saldo del pack (`prueba`, `impulso`, `volumen`) |
@@ -465,7 +497,7 @@ src/app/
   core/
     modelos.ts           Servicio, Solicitud, Usuario + mapas de estado a etiqueta/badge
     catalogo.ts          CATALOGO: única fuente de servicios y precios del sitio
-    auth.ts              Interfaz Auth + token de inyección AUTH
+    auth.ts              Interfaz Auth + token de inyección AUTH + proveedores disponibles
     auth.http.ts         Sesión real contra el backend
     auth.mock.ts         Sesión SIMULADA (fuera del bundle de producción)
     api.interceptor.ts   withCredentials + reacción al 401

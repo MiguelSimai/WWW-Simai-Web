@@ -19,6 +19,24 @@ class Config(BaseSettings):
 
     frontend_url: str = "http://localhost:4200"
 
+    # --- Microsoft Entra ID (opcional) ---
+    #
+    # Vacío significa que el proveedor no se ofrece. Es a propósito: el portal
+    # tiene que arrancar igual mientras la app no esté dada de alta en Entra, y
+    # el front pregunta por /api/auth/proveedores para no mostrar un botón que
+    # el servidor no puede atender.
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
+    microsoft_redirect_uri: str = ""
+
+    @property
+    def microsoft_habilitado(self) -> bool:
+        return bool(
+            self.microsoft_client_id
+            and self.microsoft_client_secret
+            and self.microsoft_redirect_uri
+        )
+
     # Correos que pueden entrar a la administración: dar de alta cuentas,
     # habilitarles servicios y mover usuarios entre cuentas.
     #

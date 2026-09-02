@@ -3,7 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Auth } from './auth';
-import { Usuario } from './modelos';
+import { ProveedorAuth, Usuario } from './modelos';
 
 /**
  * Cuánto se espera la consulta de sesión del arranque.
@@ -25,6 +25,11 @@ export class AuthHttp implements Auth {
   readonly usuario = this._usuario.asReadonly();
   readonly autenticado = computed(() => this._usuario() !== null);
 
+  // Google por defecto: es el que siempre existió, así que si la consulta
+  // falla el portal ofrece lo que con seguridad está disponible.
+  private readonly _proveedores = signal<readonly ProveedorAuth[]>(['google']);
+  readonly proveedores = this._proveedores.asReadonly();
+
   /** La consulta del arranque, para que los guards la puedan esperar. */
   private enCurso: Promise<void> | null = null;
 
@@ -33,8 +38,30 @@ export class AuthHttp implements Auth {
   }
 
   cargarSesion(): Promise<void> {
-    this.enCurso = this.consultar();
+    // Las dos consultas van en paralelo y ninguna depende de la otra: el 401
+    // rutinario de quien no ha entrado no tiene por qué dejar la pantalla de
+    // ingreso sin saber con qué proveedores se puede entrar.
+    this.enCurso = Promise.all([this.consultar(), this.consultarProveedores()]).then(
+      () => undefined,
+    );
     return this.enCurso;
+  }
+
+  private async consultarProveedores(): Promise<void> {
+    try {
+      const respuesta = await firstValueFrom(
+        this.http
+          .get<{ proveedores: readonly ProveedorAuth[] }>(
+            `${environment.apiUrl}/api/auth/proveedores`,
+          )
+          .pipe(timeout(ESPERA_SESION_MS)),
+      );
+      if (respuesta.proveedores?.length) {
+        this._proveedores.set(respuesta.proveedores);
+      }
+    } catch {
+      // Se queda con el valor por defecto. Un fallo acá no debe impedir entrar.
+    }
   }
 
   private async consultar(): Promise<void> {
@@ -60,9 +87,10 @@ export class AuthHttp implements Auth {
     }
   }
 
-  irALogin(volver = '/panel'): void {
+  irALogin(volver = '/panel', proveedor: ProveedorAuth = 'google'): void {
     const destino = encodeURIComponent(volver);
-    window.location.href = `${environment.apiUrl}/api/auth/login/google?volver=${destino}`;
+    window.location.href =
+      `${environment.apiUrl}/api/auth/login/${proveedor}?volver=${destino}`;
   }
 
   async salir(): Promise<void> {

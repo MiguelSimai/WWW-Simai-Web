@@ -1,5 +1,5 @@
 import { InjectionToken, Signal } from '@angular/core';
-import { Usuario } from './modelos';
+import { ProveedorAuth, Usuario } from './modelos';
 
 /**
  * Contrato de sesión que ven los componentes.
@@ -11,6 +11,12 @@ import { Usuario } from './modelos';
 export interface Auth {
   readonly usuario: Signal<Usuario | null>;
   readonly autenticado: Signal<boolean>;
+
+  /**
+   * Proveedores con los que se puede entrar, según lo que el servidor tenga
+   * configurado. Se resuelve en el arranque, junto con la sesión.
+   */
+  readonly proveedores: Signal<readonly ProveedorAuth[]>;
 
   /**
    * Pregunta al servidor si hay sesión. Se llama una vez, al arrancar la app,
@@ -28,7 +34,7 @@ export interface Auth {
   listo(): Promise<void>;
 
   /** Sale del SPA hacia el proveedor de identidad. No retorna. */
-  irALogin(volver?: string): void;
+  irALogin(volver?: string, proveedor?: ProveedorAuth): void;
 
   salir(): Promise<void>;
 

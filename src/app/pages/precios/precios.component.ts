@@ -124,7 +124,14 @@ export class PreciosComponent {
       if (this.formulario.invalid) {
         return;
       }
-      this.auth.irALogin('/precios');
+      // Con un solo proveedor se va derecho al login y se ahorra una pantalla.
+      // Con varios, la elección vive en /ingresar y no se duplica acá.
+      const disponibles = this.auth.proveedores();
+      if (disponibles.length === 1) {
+        this.auth.irALogin('/precios', disponibles[0]);
+      } else {
+        this.router.navigate(['/ingresar'], { queryParams: { volver: '/precios' } });
+      }
       return;
     }
 
