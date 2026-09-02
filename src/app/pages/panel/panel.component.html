@@ -54,6 +54,49 @@
       }
     </ul>
 
+    <!-- ===== Recargas ===== -->
+    <!--
+      Va antes de la descarga porque responde una pregunta más urgente: "¿llegó
+      mi plata?". Sólo aparece si hay algo que mostrar.
+    -->
+    @if (recargas().length) {
+      <div class="recargas card">
+        <h2 class="recargas__titulo">Recargas de saldo</h2>
+
+        <ul class="recargas__lista">
+          @for (r of recargas(); track r.id) {
+            <li class="recargas__fila">
+              <span class="badge" [class]="'badge ' + BADGE_RECARGA[r.estado]">
+                {{ ESTADO_RECARGA[r.estado] }}
+              </span>
+
+              <span class="recargas__monto">
+                @if (r.estado === 'acreditada' && r.monto_acreditado !== null) {
+                  {{ r.monto_acreditado | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+                } @else {
+                  {{ r.monto_declarado | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+                }
+              </span>
+
+              <span class="recargas__ref">Ref: {{ r.referencia }}</span>
+
+              <span class="recargas__fecha">
+                {{ (r.resuelta_en ?? r.creada_en) | date: 'd MMM, HH:mm' }}
+              </span>
+
+              @if (r.nota) {
+                <span class="recargas__nota">{{ r.nota }}</span>
+              }
+            </li>
+          }
+        </ul>
+
+        <p class="recargas__pie">
+          El saldo se acredita cuando verificamos la transferencia con el banco.
+        </p>
+      </div>
+    }
+
     <!-- ===== Descarga de resultados ===== -->
     <div class="descarga card">
       <div class="descarga__texto">

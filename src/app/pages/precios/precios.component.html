@@ -205,10 +205,22 @@
           </span>
         </p>
       } @else if (autenticado()) {
-        <!-- Ya tiene sesión: sus datos ya los tenemos, no se los pedimos otra vez. -->
+        <!--
+          Se nombra la CUENTA y no a la persona: el saldo es de la empresa y lo
+          comparten todos sus usuarios. Decir "contratas como Américo" hacía
+          pensar lo contrario.
+        -->
         <p class="contratar__quien">
-          Contratas como <strong>{{ usuario()?.nombre }}</strong><br />
-          <span>{{ usuario()?.email }}</span>
+          @if (usuario()?.empresa) {
+            Recargas la cuenta de <strong>{{ usuario()?.empresa }}</strong><br />
+            <span>
+              El saldo lo comparten todos sus usuarios · lo declaras tú,
+              {{ usuario()?.email }}
+            </span>
+          } @else {
+            Recargas tu cuenta<br />
+            <span>{{ usuario()?.email }}</span>
+          }
         </p>
 
         @if (transferencia()?.configurada) {

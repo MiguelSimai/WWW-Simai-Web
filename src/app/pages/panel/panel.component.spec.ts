@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AUTH, Auth } from '../../core/auth';
 import { EstadoSolicitud, Solicitud, Usuario } from '../../core/modelos';
+import { CuentaService, Recarga } from '../../core/cuenta.service';
 import { SolicitudesService } from '../../core/solicitudes.service';
 import { PanelComponent } from './panel.component';
 
@@ -123,6 +124,29 @@ const DOCUMENTOS = [
   },
 ];
 
+/** Doble de recargas: el panel sólo las lista, no las crea. */
+function cuentaDoble(recargas: readonly Recarga[]) {
+  return {
+    recargas: signal(recargas).asReadonly(),
+    cargarRecargas: jasmine.createSpy('cargarRecargas').and.resolveTo(),
+    cargarTransferencia: () => Promise.resolve(),
+    transferencia: signal(null).asReadonly(),
+    declarar: () => Promise.resolve(),
+  };
+}
+
+const RECARGA_ACREDITADA: Recarga = {
+  id: 'r-1',
+  pack_id: 'impulso',
+  monto_declarado: 100_000,
+  referencia: 'TEF-9911',
+  estado: 'acreditada',
+  monto_acreditado: 108_000,
+  nota: null,
+  creada_en: '2026-09-02T12:00:00Z',
+  resuelta_en: '2026-09-02T13:00:00Z',
+};
+
 registerLocaleData(localeEsCl);
 
 describe('PanelComponent', () => {
@@ -136,7 +160,11 @@ describe('PanelComponent', () => {
       b.textContent?.includes(label),
     );
 
-  async function montar(usuario: Usuario | null, datos?: readonly Solicitud[]) {
+  async function montar(
+    usuario: Usuario | null,
+    datos?: readonly Solicitud[],
+    recargas: readonly Recarga[] = [],
+  ) {
     TestBed.resetTestingModule();
     doble = solicitudesDoble(datos);
 
@@ -148,6 +176,7 @@ describe('PanelComponent', () => {
         // El guard ya garantiza la sesión; aquí se da por abierta.
         { provide: AUTH, useValue: authDoble(usuario) },
         { provide: SolicitudesService, useValue: doble },
+        { provide: CuentaService, useValue: cuentaDoble(recargas) },
       ],
     }).compileComponents();
 
@@ -327,5 +356,24 @@ describe('PanelComponent', () => {
     expect(html.querySelector('.bienvenida')).toBeTruthy();
     expect(filas().length).toBe(0);
     expect(html.querySelector('.indicadores')).toBeNull();
+  });
+
+  /**
+   * Sin esto el cliente declara una transferencia y el saldo cambia solo, sin
+   * que tenga dónde ver si su pago se verificó.
+   */
+  it('muestra las recargas con su estado y lo que se acreditó', async () => {
+    await montar(ANA, undefined, [RECARGA_ACREDITADA]);
+
+    expect(html.querySelector('.recargas__fila')?.textContent).toContain('Acreditada');
+    // Lo acreditado, no lo declarado: son $108.000 con el bono, no los $100.000.
+    expect(html.querySelector('.recargas__monto')?.textContent).toContain('108.000');
+    expect(html.querySelector('.recargas__ref')?.textContent).toContain('TEF-9911');
+  });
+
+  it('no muestra el bloque de recargas cuando no hay ninguna', async () => {
+    await montar(ANA);
+
+    expect(html.querySelector('.recargas')).toBeNull();
   });
 });

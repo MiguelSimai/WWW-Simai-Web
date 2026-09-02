@@ -10,6 +10,7 @@ import {
   EstadoSolicitud,
   Solicitud,
 } from '../../core/modelos';
+import { CuentaService } from '../../core/cuenta.service';
 import { SolicitudesService } from '../../core/solicitudes.service';
 import { IconComponent, IconName } from '../../ui/icon/icon.component';
 
@@ -36,8 +37,18 @@ interface Indicador {
 export class PanelComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AUTH);
   private readonly solicitudesSvc = inject(SolicitudesService);
+  private readonly cuenta = inject(CuentaService);
 
   protected readonly usuario = this.auth.usuario;
+
+  /**
+   * Las recargas de la cuenta.
+   *
+   * Sin esto el cliente declara una transferencia y no vuelve a saber nada:
+   * el saldo cambia solo, sin explicación, y no tiene dónde ver si su pago se
+   * verificó o se rechazó.
+   */
+  protected readonly recargas = this.cuenta.recargas;
   protected readonly cargando = this.solicitudesSvc.cargando;
   protected readonly errorCarga = this.solicitudesSvc.error;
 
@@ -45,7 +56,23 @@ export class PanelComponent implements OnInit, OnDestroy {
     // Queda pendiente mientras haya algo en proceso: el resultado llega por
     // callback desde el motor, no cuando el cliente abre la página.
     void this.solicitudesSvc.vigilar();
+    // Sin await: la lista de expedientes es lo que se vino a ver, y esto es
+    // información secundaria que puede aparecer un instante después.
+    void this.cuenta.cargarRecargas();
   }
+
+  /** Etiqueta y color del estado de una recarga. */
+  protected readonly ESTADO_RECARGA: Readonly<Record<string, string>> = {
+    pendiente: 'En verificación',
+    acreditada: 'Acreditada',
+    rechazada: 'Rechazada',
+  };
+
+  protected readonly BADGE_RECARGA: Readonly<Record<string, string>> = {
+    pendiente: 'badge--proceso',
+    acreditada: 'badge--ok',
+    rechazada: 'badge--error',
+  };
 
   ngOnDestroy(): void {
     this.solicitudesSvc.detener();

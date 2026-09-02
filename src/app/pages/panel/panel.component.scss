@@ -434,3 +434,57 @@
   max-width: 56ch;
   color: var(--c-text-muted);
 }
+
+/* ===== Recargas ==========================================================
+   Responde "¿llegó mi plata?". Antes de esto el saldo cambiaba solo, sin que
+   el cliente tuviera dónde ver si su transferencia se verificó. */
+.recargas {
+  margin-bottom: var(--sp-6);
+}
+
+.recargas__titulo {
+  margin: 0 0 var(--sp-4);
+  font-size: 1.125rem;
+}
+
+.recargas__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recargas__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.recargas__fila:last-child {
+  border-bottom: 0;
+}
+
+.recargas__monto {
+  font-weight: 650;
+}
+
+.recargas__ref {
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
+  font-size: 0.875rem;
+}
+
+.recargas__fecha,
+.recargas__nota {
+  color: var(--c-text-muted);
+  font-size: 0.875rem;
+}
+
+.recargas__pie {
+  margin: var(--sp-4) 0 0;
+  color: var(--c-text-muted);
+  font-size: 0.875rem;
+}

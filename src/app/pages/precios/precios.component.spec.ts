@@ -51,7 +51,12 @@ describe('PreciosComponent', () => {
         {
           provide: AUTH,
           useValue: {
-            usuario: signal({ id: 'u-1', email: 'ana@acme.cl', nombre: 'Ana' }).asReadonly(),
+            usuario: signal({
+              id: 'u-1',
+              email: 'ana@acme.cl',
+              nombre: 'Ana',
+              empresa: 'Acme Créditos',
+            }).asReadonly(),
             autenticado: autenticado.asReadonly(),
             proveedores: signal(['google']).asReadonly(),
             cargarSesion: () => Promise.resolve(),
@@ -147,7 +152,12 @@ describe('PreciosComponent', () => {
     it('no vuelve a pedir los datos que ya entregó el proveedor', () => {
       expect(html.querySelector('#nombre')).toBeNull();
       expect(html.querySelector('#email')).toBeNull();
-      expect(html.querySelector('.contratar__quien')?.textContent).toContain('Ana');
+    });
+
+    /** El saldo es de la empresa: nombrar a la persona hacía pensar lo contrario. */
+    it('deja claro que la recarga va a la cuenta de la empresa', () => {
+      expect(texto('.contratar__quien')).toContain('Acme Créditos');
+      expect(texto('.contratar__quien')).toContain('comparten');
     });
 
     it('muestra a dónde transferir', () => {
