@@ -58,7 +58,29 @@ function adminDoble() {
     cuentas: signal<readonly CuentaAdmin[]>([ACME, SIN_SERVICIOS]),
     usuarios: signal<readonly UsuarioAdmin[]>(USUARIOS),
     plantillas: signal([{ id: 'pl-1', servicio: 'documentos', nombre: 'Operaciones' }]),
+    recargas: signal([
+      {
+        id: 'r-1',
+        estado: 'pendiente' as const,
+        pack_id: 'impulso',
+        monto_declarado: 100_000,
+        referencia: 'TEF-9911',
+        monto_acreditado: null,
+        nota: null,
+        creada_en: '2026-09-02T12:00:00Z',
+        resuelta_en: null,
+        resuelta_por: null,
+        cuenta_id: 'c-1',
+        cuenta: 'Acme Créditos',
+        cuenta_rut: '76543210-3',
+        declarada_por: 'ana@acme.cl',
+        bonus: 8_000,
+        sugerido: 108_000,
+      },
+    ]),
     cargar: jasmine.createSpy('cargar').and.resolveTo(),
+    acreditarRecarga: jasmine.createSpy('acreditarRecarga').and.resolveTo(),
+    rechazarRecarga: jasmine.createSpy('rechazarRecarga').and.resolveTo(),
     crearCuenta: jasmine.createSpy('crearCuenta').and.resolveTo(),
     habilitarProceso: jasmine.createSpy('habilitarProceso').and.resolveTo(),
     quitarProceso: jasmine.createSpy('quitarProceso').and.resolveTo(),
@@ -89,6 +111,34 @@ describe('AdminComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     html = fixture.nativeElement;
+  });
+
+  it('propone acreditar lo declarado más el bono del pack', () => {
+    const monto = html.querySelector<HTMLInputElement>('.recarga input[type="number"]')!;
+
+    expect(monto.value).toBe('108000');
+    expect(html.querySelector('.recarga__ref')?.textContent).toContain('TEF-9911');
+  });
+
+  it('acredita con el monto que quedó en el campo, no con el declarado', async () => {
+    const monto = html.querySelector<HTMLInputElement>('.recarga input[type="number"]')!;
+    // Llegó menos de lo declarado: se acredita lo que dice la cartola.
+    monto.value = '50000';
+    monto.dispatchEvent(new Event('input'));
+
+    html.querySelector<HTMLButtonElement>('.recarga .btn--primary')!.click();
+    await fixture.whenStable();
+
+    expect(doble.acreditarRecarga).toHaveBeenCalledWith('r-1', 50_000, null);
+  });
+
+  it('no rechaza una recarga sin motivo', async () => {
+    html.querySelector<HTMLButtonElement>('.recarga .btn--ghost')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(doble.rechazarRecarga).not.toHaveBeenCalled();
+    expect(html.querySelector('.field__error')?.textContent).toContain('motivo');
   });
 
   it('carga las cuentas al entrar', () => {

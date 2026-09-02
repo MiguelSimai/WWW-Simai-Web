@@ -1,4 +1,4 @@
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AdminService, CuentaAdmin } from '../../core/admin.service';
@@ -7,7 +7,7 @@ import { ServicioId } from '../../core/modelos';
 
 @Component({
   selector: 'app-admin',
-  imports: [CurrencyPipe, ReactiveFormsModule],
+  imports: [CurrencyPipe, DatePipe, ReactiveFormsModule],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss',
 })
@@ -18,6 +18,19 @@ export class AdminComponent implements OnInit {
   protected readonly cuentas = this.admin.cuentas;
   protected readonly usuarios = this.admin.usuarios;
   protected readonly plantillas = this.admin.plantillas;
+  protected readonly recargas = this.admin.recargas;
+
+  /** La bandeja de trabajo: lo que hay que buscar en la cartola. */
+  protected readonly pendientes = computed(() =>
+    this.recargas().filter((r) => r.estado === 'pendiente'),
+  );
+
+  /** Las resueltas, para poder mirar atrás sin ir a la base. */
+  protected readonly resueltas = computed(() =>
+    this.recargas().filter((r) => r.estado !== 'pendiente'),
+  );
+
+  protected readonly errorRecarga = signal<string | null>(null);
 
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -214,6 +227,38 @@ export class AdminComponent implements OnInit {
       this.errorRut.set(null);
     } catch (error) {
       this.errorRut.set(this.detalle(error, 'No pudimos guardar el RUT.'));
+    }
+  }
+
+  protected async acreditarRecarga(id: string, monto: string, nota: string): Promise<void> {
+    const valor = Number(monto);
+
+    if (!Number.isFinite(valor) || valor <= 0) {
+      this.errorRecarga.set('El monto a acreditar tiene que ser mayor que cero.');
+      return;
+    }
+
+    try {
+      await this.admin.acreditarRecarga(id, valor, nota.trim() || null);
+      this.errorRecarga.set(null);
+    } catch (error) {
+      this.errorRecarga.set(this.detalle(error, 'No pudimos acreditar la recarga.'));
+    }
+  }
+
+  protected async rechazarRecarga(id: string, nota: string): Promise<void> {
+    if (!nota.trim()) {
+      // Obligatoria porque el cliente la va a ver: "rechazada" sin motivo
+      // termina en una llamada telefónica.
+      this.errorRecarga.set('Escribe el motivo del rechazo: el cliente lo va a ver.');
+      return;
+    }
+
+    try {
+      await this.admin.rechazarRecarga(id, nota.trim());
+      this.errorRecarga.set(null);
+    } catch (error) {
+      this.errorRecarga.set(this.detalle(error, 'No pudimos rechazar la recarga.'));
     }
   }
 

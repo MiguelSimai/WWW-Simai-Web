@@ -252,3 +252,82 @@
   color: var(--c-text-muted);
   font-weight: 400;
 }
+
+/* ===== Recargas ==========================================================
+   Bandeja de trabajo: una fila por transferencia declarada, con los campos
+   para resolverla a la vista. */
+.admin__cuenta {
+  display: inline-block;
+  min-width: 1.5rem;
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--c-warn-soft);
+  color: var(--c-warn);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.recargas,
+.resueltas {
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  list-style: none;
+}
+
+.recarga {
+  display: grid;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.recarga__quien {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.recarga__declarado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.recarga__etiqueta {
+  color: var(--c-text-muted);
+  font-size: 0.9375rem;
+}
+
+.recarga__meta {
+  color: var(--c-text-muted);
+  font-size: 0.875rem;
+}
+
+.recarga__ref {
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
+  font-size: 0.875rem;
+}
+
+.recarga__resolver {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-border);
+}
+
+.resuelta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 0.9375rem;
+}

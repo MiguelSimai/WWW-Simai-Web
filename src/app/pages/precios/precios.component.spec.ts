@@ -15,14 +15,14 @@ describe('PreciosComponent', () => {
   let fixture: ComponentFixture<PreciosComponent>;
   let html: HTMLElement;
   let irALogin: jasmine.Spy;
-  let contratar: jasmine.Spy;
+  let declarar: jasmine.Spy;
   let autenticado: ReturnType<typeof signal<boolean>>;
 
   const texto = (selector: string) => html.querySelector(selector)?.textContent?.trim() ?? '';
 
   beforeEach(async () => {
     irALogin = jasmine.createSpy('irALogin');
-    contratar = jasmine.createSpy('contratar').and.resolveTo(undefined);
+    declarar = jasmine.createSpy('declarar').and.resolveTo(undefined);
     autenticado = signal(false);
 
     await TestBed.configureTestingModule({
@@ -31,7 +31,23 @@ describe('PreciosComponent', () => {
         provideRouter([]),
         provideHttpClient(),
         { provide: LOCALE_ID, useValue: 'es-CL' },
-        { provide: CuentaService, useValue: { contratar } },
+        {
+          provide: CuentaService,
+          useValue: {
+            declarar,
+            cargarTransferencia: () => Promise.resolve(),
+            cargarRecargas: () => Promise.resolve(),
+            recargas: signal([]).asReadonly(),
+            transferencia: signal({
+              configurada: true,
+              banco: 'Banco de Chile',
+              tipo: 'Cuenta Corriente',
+              numero: '00-123-45678-90',
+              rut: '76543210-3',
+              titular: 'SimAI SpA',
+            }).asReadonly(),
+          },
+        },
         {
           provide: AUTH,
           useValue: {
@@ -119,7 +135,7 @@ describe('PreciosComponent', () => {
     fixture.detectChanges();
 
     expect(irALogin).toHaveBeenCalledWith('/precios', 'google');
-    expect(contratar).not.toHaveBeenCalled();
+    expect(declarar).not.toHaveBeenCalled();
   });
 
   describe('con sesión ya iniciada', () => {
@@ -128,29 +144,61 @@ describe('PreciosComponent', () => {
       fixture.detectChanges();
     });
 
-    it('no vuelve a pedir los datos que Google ya entregó', () => {
+    it('no vuelve a pedir los datos que ya entregó el proveedor', () => {
       expect(html.querySelector('#nombre')).toBeNull();
       expect(html.querySelector('#email')).toBeNull();
       expect(html.querySelector('.contratar__quien')?.textContent).toContain('Ana');
     });
 
-    it('contrata sin mandar de nuevo al login', async () => {
+    it('muestra a dónde transferir', () => {
+      expect(texto('.banco')).toContain('00-123-45678-90');
+      expect(texto('.banco')).toContain('SimAI SpA');
+    });
+
+    /**
+     * El botón dice "Ya transferí": sin el número no hay forma de encontrar el
+     * pago en la cartola, así que no se registra nada.
+     */
+    it('no declara sin el N° de transferencia', async () => {
+      (html.querySelector('.contratar__form') as HTMLFormElement)
+        .dispatchEvent(new Event('submit'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(declarar).not.toHaveBeenCalled();
+      expect(texto('.contratar__error')).toContain('N° de la transferencia');
+    });
+
+    it('declara la transferencia sin mandar de nuevo al login', async () => {
+      const referencia = html.querySelector('#referencia') as HTMLInputElement;
+      referencia.value = 'TEF-9911';
+      referencia.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
       (html.querySelector('.contratar__form') as HTMLFormElement)
         .dispatchEvent(new Event('submit'));
       await fixture.whenStable();
 
-      expect(contratar).toHaveBeenCalledWith('impulso');
+      expect(declarar).toHaveBeenCalledWith('impulso', 100_000, 'TEF-9911');
       expect(irALogin).not.toHaveBeenCalled();
     });
 
-    it('manda el id del pack, nunca el monto', async () => {
+    it('manda el id del pack junto con lo declarado', async () => {
       (html.querySelectorAll('.pack')[2] as HTMLButtonElement).click();
       fixture.detectChanges();
+
+      const referencia = html.querySelector('#referencia') as HTMLInputElement;
+      referencia.value = 'TEF-2';
+      referencia.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
       (html.querySelector('.contratar__form') as HTMLFormElement)
         .dispatchEvent(new Event('submit'));
       await fixture.whenStable();
 
-      expect(contratar).toHaveBeenCalledWith('volumen');
+      // El monto viaja como declaración, no como orden: el bono y lo que se
+      // acredita de verdad los pone el servidor.
+      expect(declarar).toHaveBeenCalledWith('volumen', 300_000, 'TEF-2');
     });
   });
 });

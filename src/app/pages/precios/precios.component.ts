@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CurrencyPipe, LowerCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
@@ -29,7 +29,7 @@ interface Pregunta {
   templateUrl: './precios.component.html',
   styleUrl: './precios.component.scss',
 })
-export class PreciosComponent {
+export class PreciosComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AUTH);
   private readonly cuenta = inject(CuentaService);
@@ -39,6 +39,19 @@ export class PreciosComponent {
   protected readonly usuario = this.auth.usuario;
   protected readonly procesando = signal(false);
   protected readonly errorContratar = signal<string | null>(null);
+
+  /** Datos bancarios que se le muestran al cliente. Los entrega el servidor. */
+  protected readonly transferencia = this.cuenta.transferencia;
+
+  /** Queda en true tras declarar, para mostrar el acuse en vez del formulario. */
+  protected readonly declarada = signal(false);
+
+  async ngOnInit(): Promise<void> {
+    // Requiere sesión, así que sólo tiene sentido pedirlo si ya entró.
+    if (this.autenticado()) {
+      await this.cuenta.cargarTransferencia();
+    }
+  }
 
   protected readonly servicios = CATALOGO;
 
@@ -104,6 +117,9 @@ export class PreciosComponent {
     nombre: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
     empresa: [''],
+    // Sólo se exige a quien ya entró y está declarando: es el dato que permite
+    // encontrar la transferencia en la cartola.
+    referencia: [''],
   });
 
   protected readonly enviado = signal(false);
@@ -113,15 +129,17 @@ export class PreciosComponent {
   }
 
   /**
-   * Quien ya entró contrata en el acto: no tiene sentido mandarlo otra vez a
-   * Google. Quien no ha entrado pasa por el login y vuelve aquí a completar.
+   * Quien no ha entrado pasa por el login y vuelve aquí. Quien ya entró declara
+   * la transferencia que hizo — **esto no acredita saldo**: lo mueve alguien al
+   * verificarla contra la cartola.
    */
   protected async contratar(): Promise<void> {
     this.errorContratar.set(null);
 
     if (!this.autenticado()) {
       this.enviado.set(true);
-      if (this.formulario.invalid) {
+      // La referencia no aplica a quien todavía no entró.
+      if (this.f.nombre.invalid || this.f.email.invalid) {
         return;
       }
       // Con un solo proveedor se va derecho al login y se ahorra una pantalla.
@@ -135,12 +153,31 @@ export class PreciosComponent {
       return;
     }
 
+    this.enviado.set(true);
+    const referencia = this.f.referencia.value.trim();
+
+    if (!referencia) {
+      this.errorContratar.set(
+        'Escribe el N° de la transferencia: es lo que nos permite encontrarla.',
+      );
+      return;
+    }
+
     this.procesando.set(true);
     try {
-      await this.cuenta.contratar(this.packSel());
-      this.router.navigate(['/panel']);
-    } catch {
-      this.errorContratar.set('No pudimos acreditar el saldo. Inténtalo de nuevo.');
+      await this.cuenta.declarar(
+        this.packSel(),
+        this.packActivo().monto,
+        referencia,
+      );
+      this.declarada.set(true);
+    } catch (error) {
+      const detail = (error as { error?: { detail?: unknown } })?.error?.detail;
+      this.errorContratar.set(
+        typeof detail === 'string' && detail
+          ? detail
+          : 'No pudimos registrar tu transferencia. Inténtalo de nuevo.',
+      );
     } finally {
       this.procesando.set(false);
     }

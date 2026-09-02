@@ -41,9 +41,10 @@ Lo que sigue pendiente:
 
 - **La modalidad API.** Credenciales por cliente, consumo y documentación. Por eso el saldo,
   el cobro y las solicitudes viven en módulos que no saben de dónde viene la petición
-- **No hay pasarela de pago.** `contratar` acredita el saldo directo. Cuando exista el
-  cobro, ese endpoint debe crear la intención de pago y el saldo acreditarse recién en el
-  webhook de confirmación, nunca ahí mismo
+- **No hay pasarela de pago**, pero sí cobro real: el cliente transfiere, declara la
+  transferencia en `/precios`, y el saldo se acredita cuando alguien la verifica contra la
+  cartola desde `/admin`. La aprobación manual ocupa el lugar que tendría el webhook de una
+  pasarela
 - **Nada se ha corrido contra el motor real.** Todo el circuito está verificado con dobles y
   con `MOTOR_SIMULADO=true`. Falta crear los procesos en la base del motor, apuntarles
   `id_proceso` reales en `cuenta_procesos` de cada cliente, y clonar el flujo N8N
@@ -186,7 +187,43 @@ POST /api/callbacks/expediente     cierra, ajusta el cobro, deriva el resumen
 **El portal recibe un callback por expediente, no uno por documento**: la espera y la
 consolidación las hace N8N, que ya tenía ese mecanismo.
 
-### Cobro
+### Recarga de saldo
+
+**Declarar no es acreditar.** El cliente transfiere a la cuenta corriente y declara en
+`/precios` lo que transfirió, con el N° de la transferencia. Eso crea una fila en `recargas`
+con estado `pendiente` y **no mueve un peso**. El saldo se acredita cuando alguien la verifica
+en la cartola y la aprueba desde `/admin`.
+
+```
+/precios     el cliente ve los datos bancarios, transfiere y declara
+   │
+POST /api/cuenta/recargas        recargas (estado = 'pendiente')
+   │
+   │  ⟵ alguien la busca en la cartola del banco
+   ▼
+POST /api/admin/recargas/{id}/acreditar     mueve el saldo y la marca
+```
+
+**El monto que se acredita es el de la cartola, no el declarado.** Lo que el cliente escribe
+sirve para encontrar la transferencia y para que la diferencia quede a la vista; si transfirió
+menos de lo que dijo, se acredita lo que llegó. El bono del pack lo pone el servidor, y
+`/api/admin/recargas` devuelve un `sugerido` —declarado + bono— que la pantalla propone y quien
+verifica puede corregir.
+
+Rechazar exige una nota, porque el cliente la ve: "rechazada" sin motivo termina en una llamada
+telefónica. La fila no se borra — que alguien declaró una transferencia que no llegó es
+justamente lo que hay que poder revisar después.
+
+Los datos bancarios viven en **configuración** (`TRANSFERENCIA_*`), no en la base: la cuenta a
+la que llega la plata no es un dato que deba poder editarse desde el producto. Sin banco y
+número configurados, el portal no ofrece la recarga — mejor eso que mostrar una cuenta a medias
+y que alguien transfiera a ninguna parte.
+
+También se puede acreditar **directo desde `/admin`**, sin recarga declarada: es la vía para un
+pago que llegó por fuera del portal. Las dos comparten el mismo código (`_mover_saldo`), así que
+ninguna se olvida de marcar `contratado_en` ni de dejar el movimiento.
+
+### Cobro del procesamiento
 
 **Reserva al enviar, ajuste al cerrar.** Se mide y se reserva el expediente completo; si no
 alcanza el saldo se rechaza con 402 antes de gastar en Azure. Al cerrarse, lo que falló se
@@ -444,7 +481,7 @@ pool de conexiones es cambiar sólo `db.py`.
 | Ruta | Página | Notas |
 |---|---|---|
 | `/` | Landing | Anclas: `#servicios`, `#como-funciona`, `#pago-por-uso`, `#seguridad`, `#contacto` |
-| `/precios` | Tarifas, calculadora, packs de saldo, contratación | Contratar acredita saldo vía `CuentaService` |
+| `/precios` | Tarifas, calculadora, packs, datos de transferencia | Declarar no acredita: lo aprueba `/admin` |
 | `/ingresar` | Acceso | Acepta `?volver=` y `?error=sesion-expirada` |
 | `/enviar` | Subida de archivos y carpetas | Protegida por `sesionGuard` |
 | `/panel` | Expedientes del usuario, con sus documentos | Protegida por `sesionGuard` |
@@ -468,14 +505,19 @@ listado: la mayoría de las filas nunca se abre.
 | GET | `/api/auth/retorno` | Retorno **compartido**: valida, crea la sesión, deja la cookie y vuelve al portal |
 | GET | `/api/auth/me` | Devuelve el usuario, o 401 si no hay sesión |
 | POST | `/api/auth/logout` | Revoca la sesión y borra la cookie |
-| POST | `/api/cuenta/contratar/{pack_id}` | Acredita el saldo del pack (`prueba`, `impulso`, `volumen`) |
+| GET | `/api/cuenta/transferencia` | A dónde transferir. Requiere sesión |
+| POST | `/api/cuenta/recargas` | Declara una transferencia. **No acredita saldo** |
+| GET | `/api/cuenta/recargas` | Las recargas de la cuenta, con su estado |
 | POST | `/api/solicitudes` | Recibe un expediente y lo despacha al motor |
 | GET | `/api/solicitudes` | Los expedientes del usuario, 25 por página |
 | GET | `/api/solicitudes/{codigo}` | Uno, con el detalle de sus documentos |
 | GET | `/api/solicitudes/excel` | La planilla de resultados de un rango de fechas |
 | POST | `/api/callbacks/expediente` | Recibe el resultado consolidado desde N8N |
 | GET | `/api/salud` | Health check |
-| POST | `/api/admin/cuentas/{id}/saldo` | Acredita saldo a mano. Monto negativo corrige |
+| GET | `/api/admin/recargas` | Bandeja: pendientes primero, con el monto sugerido |
+| POST | `/api/admin/recargas/{id}/acreditar` | Aprueba y mueve el saldo. El monto es el de la cartola |
+| POST | `/api/admin/recargas/{id}/rechazar` | Descarta sin mover saldo. Nota obligatoria |
+| POST | `/api/admin/cuentas/{id}/saldo` | Acredita saldo a mano, sin recarga declarada |
 | POST | `/api/admin/cuentas/{id}/rut` | Fija el RUT. Valida dígito verificador (422) y unicidad (409) |
 | — | `/api/admin/*` | Cuentas, procesos, usuarios, plantillas y catálogo (sólo `ADMIN_EMAILS`) |
 
@@ -493,8 +535,8 @@ token configurado responde 503 — vacío significa deshabilitado, no abierto. E
 
 Tablas en `backend/migraciones/`: `cuentas` (saldo y `contratado_en`), `usuarios` (con
 `cuenta_id`), `identidades` (PK compuesta `proveedor` + `sujeto`), `sesiones` (`token_hash` en
-`bytea`), `cuenta_procesos`, `solicitudes`, `documentos`, `movimientos_saldo` y
-`plantillas_excel`. `contratado_en` en `NULL` significa que la cuenta nunca cargó saldo: ese es
+`bytea`), `cuenta_procesos`, `solicitudes`, `documentos`, `movimientos_saldo`,
+`plantillas_excel` y `recargas`. `contratado_en` en `NULL` significa que la cuenta nunca cargó saldo: ese es
 el criterio para mostrar la contratación en vez del panel vacío.
 
 `usuarios.saldo` y `usuarios.contratado_en` siguen en la tabla pero **ya no se leen** — la
@@ -645,8 +687,11 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 - **No hay invitaciones**: cualquiera con cuenta de Google puede registrarse. Queda sin acceso a
   nada —cuenta propia y vacía— pero queda registrado, y hay que habilitarlo desde `/admin`
 - Sin pantalla `/solicitud/:codigo` ni descarga del resultado
-- Sin pasarela de pago. `contratar` en `/precios` acredita sin cobrar; el cobro real hoy es
-  transferencia + acreditación manual desde `/admin`
+- **Sin pasarela de pago.** El cobro es transferencia + verificación manual. Cuando llegue una
+  pasarela (Khipu, Flow, Webpay), su webhook reemplaza la aprobación de `/admin` y el resto del
+  flujo no cambia: la tabla `recargas` ya está donde tiene que estar
+- **No se avisa por correo.** Ni al cliente cuando se le acredita, ni a `TRANSFERENCIA_EMAIL`
+  cuando alguien declara. Hoy hay que mirar `/admin`
 - **Facturación incompleta.** Está el RUT, pero una factura chilena necesita además razón
   social, giro y dirección. Se agregan cuando esté definido cómo se emite
 - El **resultado consolidado por expediente** —cruzar contrato con pagaré para detectar

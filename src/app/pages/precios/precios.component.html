@@ -192,12 +192,67 @@
     </div>
 
     <form class="contratar__form card" [formGroup]="formulario" (ngSubmit)="contratar()" novalidate>
-      @if (autenticado()) {
+      @if (declarada()) {
+        <!--
+          Acuse de recibo. No se navega al panel porque todavía no hay saldo:
+          decirle "listo" y dejarlo con la cuenta en cero sería mentirle.
+        -->
+        <p class="contratar__quien">
+          <strong>Recibimos tu transferencia.</strong><br />
+          <span>
+            La verificamos contra la cartola y te acreditamos el saldo. Mientras tanto la ves
+            como pendiente en tu panel.
+          </span>
+        </p>
+      } @else if (autenticado()) {
         <!-- Ya tiene sesión: sus datos ya los tenemos, no se los pedimos otra vez. -->
         <p class="contratar__quien">
           Contratas como <strong>{{ usuario()?.nombre }}</strong><br />
           <span>{{ usuario()?.email }}</span>
         </p>
+
+        @if (transferencia()?.configurada) {
+          <div class="banco">
+            <p class="banco__titulo">
+              Transfiere
+              {{ packActivo().monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }} a:
+            </p>
+            <dl class="banco__datos">
+              <dt>Banco</dt>
+              <dd>{{ transferencia()?.banco }}</dd>
+              <dt>Tipo</dt>
+              <dd>{{ transferencia()?.tipo }}</dd>
+              <dt>N° de cuenta</dt>
+              <dd>{{ transferencia()?.numero }}</dd>
+              @if (transferencia()?.rut) {
+                <dt>RUT</dt>
+                <dd>{{ transferencia()?.rut }}</dd>
+              }
+              @if (transferencia()?.titular) {
+                <dt>Titular</dt>
+                <dd>{{ transferencia()?.titular }}</dd>
+              }
+            </dl>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="referencia">N° de la transferencia</label>
+            <input
+              id="referencia"
+              class="field__control"
+              type="text"
+              formControlName="referencia"
+              placeholder="El número que te dio tu banco" />
+            <span class="field__hint">
+              Es lo que nos permite encontrar tu pago en la cartola.
+            </span>
+          </div>
+        } @else {
+          <p class="contratar__aviso">
+            La recarga en línea no está disponible todavía. Escríbenos y coordinamos la
+            transferencia.
+          </p>
+        }
       } @else {
         <div class="field">
           <label class="field__label" for="nombre">Nombre y apellido</label>
@@ -250,20 +305,27 @@
         <p class="contratar__error" role="alert">{{ mensaje }}</p>
       }
 
-      <button type="submit" class="btn btn--primary btn--lg btn--block" [disabled]="procesando()">
+      <button
+        type="submit"
+        class="btn btn--primary btn--lg btn--block"
+        [disabled]="procesando() || declarada()"
+      >
         @if (procesando()) {
-          Acreditando saldo…
+          Registrando…
+        } @else if (declarada()) {
+          Listo
         } @else if (autenticado()) {
-          Cargar {{ packActivo().nombre | lowercase }} a mi cuenta
+          Ya transferí
         } @else {
-          Crear cuenta y contratar
+          Crear cuenta y continuar
         }
       </button>
 
       <p class="contratar__aviso">
-        @if (autenticado()) {
-          Aún no hay pasarela de pago: el saldo se acredita de inmediato para que puedas
-          probar el portal completo.
+        @if (declarada()) {
+          Te avisamos por correo cuando el saldo esté disponible.
+        } @else if (autenticado()) {
+          El saldo se acredita cuando verificamos la transferencia, no al apretar el botón.
         } @else {
           Creamos tu cuenta y vuelves aquí para completar la contratación.
         }

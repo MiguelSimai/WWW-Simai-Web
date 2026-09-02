@@ -19,6 +19,27 @@ class Config(BaseSettings):
 
     frontend_url: str = "http://localhost:4200"
 
+    # --- Datos de transferencia ---
+    #
+    # Lo que se le muestra al cliente para que pague. Van en configuración y no
+    # en la base: cambian casi nunca, y la cuenta bancaria a la que llega la
+    # plata no es un dato que deba poder editarse desde el producto.
+    #
+    # Sin `transferencia_banco` y `transferencia_numero` el portal no ofrece la
+    # recarga: es preferible no mostrar la pantalla que mostrarla incompleta y
+    # que alguien transfiera a ninguna parte.
+    transferencia_banco: str = ""
+    transferencia_tipo: str = "Cuenta Corriente"
+    transferencia_numero: str = ""
+    transferencia_rut: str = ""
+    transferencia_titular: str = ""
+    # Dónde avisar que transfirió, además de quedar registrado en el portal.
+    transferencia_email: str = ""
+
+    @property
+    def transferencia_configurada(self) -> bool:
+        return bool(self.transferencia_banco and self.transferencia_numero)
+
     # --- Microsoft Entra ID (opcional) ---
     #
     # Vacío significa que el proveedor no se ofrece. Es a propósito: el portal

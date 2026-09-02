@@ -26,6 +26,104 @@
       <button type="submit" class="btn btn--primary">Crear cuenta</button>
     </form>
 
+    <!-- ===== Recargas ===== -->
+    <!--
+      La bandeja de trabajo: cada pendiente hay que buscarla en la cartola del
+      banco. Los campos van abiertos y no tras un botón porque acá se viene a
+      resolver, no a mirar.
+    -->
+    <h2 class="admin__seccion">
+      Recargas por verificar
+      @if (pendientes().length) {
+        <span class="admin__cuenta">{{ pendientes().length }}</span>
+      }
+    </h2>
+
+    @if (errorRecarga(); as mensaje) {
+      <p class="field__error" role="alert">{{ mensaje }}</p>
+    }
+
+    @if (!pendientes().length) {
+      <p class="admin__vacio">Nada por verificar.</p>
+    } @else {
+      <ul class="recargas">
+        @for (r of pendientes(); track r.id) {
+          <li class="recarga card">
+            <div class="recarga__quien">
+              <strong>{{ r.cuenta }}</strong>
+              <span class="recarga__meta">
+                {{ r.declarada_por }} · {{ r.creada_en | date: 'd MMM, HH:mm' }}
+              </span>
+            </div>
+
+            <div class="recarga__declarado">
+              <span class="recarga__etiqueta">Declaró</span>
+              <strong>
+                {{ r.monto_declarado | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+              </strong>
+              @if (r.bonus) {
+                <span class="recarga__meta">
+                  + {{ r.bonus | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }} de bono
+                </span>
+              }
+              <span class="recarga__ref">Ref: {{ r.referencia }}</span>
+            </div>
+
+            <div class="recarga__resolver">
+              <label class="campo campo--corto">
+                <span>Acreditar</span>
+                <!-- Propuesto: lo declarado más el bono. Se edita si la cartola
+                     dice otra cosa, que es el caso que importa. -->
+                <input #monto type="number" [value]="r.sugerido" step="1000" />
+              </label>
+
+              <label class="campo">
+                <span>Nota</span>
+                <input #nota type="text" placeholder="Opcional al acreditar" />
+              </label>
+
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="acreditarRecarga(r.id, monto.value, nota.value)">
+                Acreditar
+              </button>
+
+              <button
+                type="button"
+                class="btn btn--ghost"
+                (click)="rechazarRecarga(r.id, nota.value)">
+                Rechazar
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (resueltas().length) {
+      <ul class="resueltas">
+        @for (r of resueltas(); track r.id) {
+          <li class="resuelta">
+            <span class="badge" [class.badge--ok]="r.estado === 'acreditada'"
+                  [class.badge--error]="r.estado === 'rechazada'">
+              {{ r.estado }}
+            </span>
+            <span>{{ r.cuenta }}</span>
+            <span class="recarga__meta">Ref: {{ r.referencia }}</span>
+            <span>
+              @if (r.monto_acreditado) {
+                {{ r.monto_acreditado | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
+              } @else {
+                —
+              }
+            </span>
+            <span class="recarga__meta">{{ r.nota }}</span>
+          </li>
+        }
+      </ul>
+    }
+
     <!-- ===== Cuentas ===== -->
     <h2 class="admin__seccion">Cuentas</h2>
 

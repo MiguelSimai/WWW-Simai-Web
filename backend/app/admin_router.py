@@ -18,6 +18,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from .catalogo import CATALOGO
+from .cuenta_router import PACKS
 from .db import pool
 from .dependencias import admin_actual
 from .rut import RutInvalido, normalizar
@@ -53,6 +54,15 @@ class MoverUsuario(BaseModel):
     cuenta_id: str
 
 
+class ResolverRecarga(BaseModel):
+    """Lo que se acredita de una recarga declarada, o por qué se rechaza."""
+
+    # El monto REAL, el de la cartola. Puede no ser el que el cliente declaró,
+    # y es el único que mueve saldo.
+    monto: int | None = None
+    nota: str | None = None
+
+
 class CargaSaldo(BaseModel):
     """Acreditación manual contra un pago recibido fuera del portal."""
 
@@ -68,6 +78,41 @@ class PlantillaNueva(BaseModel):
     servicio: str
     nombre: str = Field(min_length=1, max_length=200)
     columnas: list[dict]
+
+
+def _mover_saldo(conn, cuenta_id: str, monto: int, tipo: str, detalle: str, admin: dict) -> dict:
+    """
+    Suma `monto` al saldo de la cuenta y deja el movimiento.
+
+    Compartido por la carga manual y por la aprobación de una recarga: son la
+    misma operación con distinto origen, y tenerla en un solo lugar evita que
+    una de las dos se olvide de marcar `contratado_en` o de dejar rastro.
+
+    Asume que el llamador ya bloqueó la fila de la cuenta y validó el monto.
+    """
+    fila = conn.execute(
+        """
+        update cuentas
+           set saldo = saldo + %s,
+               contratado_en = case
+                   when %s > 0 then coalesce(contratado_en, now())
+                   else contratado_en
+               end
+         where id = %s
+         returning saldo, contratado_en
+        """,
+        (monto, monto, cuenta_id),
+    ).fetchone()
+
+    conn.execute(
+        """
+        insert into movimientos_saldo (cuenta_id, usuario_id, tipo, monto, detalle)
+             values (%s, %s, %s, %s, %s)
+        """,
+        (cuenta_id, admin["id"], tipo, monto, f"{detalle} — por {admin['email']}"),
+    )
+
+    return fila
 
 
 @router.get("/cuentas")
@@ -220,36 +265,13 @@ def cargar_saldo(
                 ).replace(",", "."),
             )
 
-        # `contratado_en` se marca igual que en una contratación normal: es lo
-        # que decide si el cliente ve el panel o la pantalla de packs, y sin
-        # esto recibiría el saldo y seguiría viendo "elige un pack".
-        fila = conn.execute(
-            """
-            update cuentas
-               set saldo = saldo + %s,
-                   contratado_en = case
-                       when %s > 0 then coalesce(contratado_en, now())
-                       else contratado_en
-                   end
-             where id = %s
-             returning saldo, contratado_en
-            """,
-            (datos.monto, datos.monto, cuenta_id),
-        ).fetchone()
-
-        # Queda quién lo acreditó: mover plata a mano tiene que poder auditarse.
-        conn.execute(
-            """
-            insert into movimientos_saldo (cuenta_id, usuario_id, tipo, monto, detalle)
-                 values (%s, %s, %s, %s, %s)
-            """,
-            (
-                cuenta_id,
-                admin["id"],
-                "carga" if datos.monto > 0 else "ajuste",
-                datos.monto,
-                f"{referencia} — por {admin['email']}",
-            ),
+        fila = _mover_saldo(
+            conn,
+            cuenta_id,
+            datos.monto,
+            "carga" if datos.monto > 0 else "ajuste",
+            referencia,
+            admin,
         )
 
     logger.info(
@@ -504,6 +526,158 @@ def fusionar_cuenta(
         "saldo_traspasado": saldo_origen,
         "solicitudes_traspasadas": solicitudes,
     }
+
+
+@router.get("/recargas")
+def listar_recargas(admin: Annotated[dict, Depends(admin_actual)]):
+    """
+    Las recargas por verificar, más las últimas resueltas.
+
+    Las pendientes son la bandeja de trabajo: hay que buscar cada una en la
+    cartola. Las resueltas van para poder mirar atrás sin ir a la base.
+    """
+    with pool.connection() as conn:
+        filas = conn.execute(
+            """
+            select r.id, r.estado, r.pack_id, r.monto_declarado, r.referencia,
+                   r.monto_acreditado, r.nota, r.creada_en, r.resuelta_en, r.resuelta_por,
+                   c.id as cuenta_id, c.nombre as cuenta, c.rut as cuenta_rut,
+                   u.email as declarada_por
+              from recargas r
+              join cuentas c on c.id = r.cuenta_id
+              join usuarios u on u.id = r.usuario_id
+             order by (r.estado = 'pendiente') desc, r.creada_en desc
+             limit 50
+            """
+        ).fetchall()
+
+    # El bono del pack lo pone el servidor, así que se calcula acá y no en la
+    # pantalla: es lo que se va a acreditar de más si el monto declarado calza.
+    recargas = []
+    for f in filas:
+        fila = dict(f)
+        pack = PACKS.get(fila["pack_id"] or "")
+        fila["bonus"] = pack["bonus"] if pack else 0
+        fila["sugerido"] = fila["monto_declarado"] + fila["bonus"]
+        recargas.append(fila)
+
+    return {"recargas": recargas}
+
+
+@router.post("/recargas/{recarga_id}/acreditar")
+def acreditar_recarga(
+    recarga_id: str,
+    datos: ResolverRecarga,
+    admin: Annotated[dict, Depends(admin_actual)],
+):
+    """
+    Aprueba una recarga y mueve el saldo.
+
+    El monto que se acredita es el que va en `datos.monto`, o sea **el de la
+    cartola**, no el que el cliente declaró. Si transfirió menos de lo que dijo,
+    se acredita lo que llegó; la diferencia queda a la vista en la recarga.
+
+    Todo en una transacción: o se acredita y se marca, o no pasa nada. Si el
+    saldo se moviera sin marcar la recarga, quedaría lista para acreditarse otra
+    vez.
+    """
+    with pool.connection() as conn:
+        # `for update`: dos administradores no pueden aprobar la misma recarga
+        # en paralelo y acreditar el doble.
+        recarga = conn.execute(
+            """
+            select r.id, r.estado, r.cuenta_id, r.pack_id, r.monto_declarado, r.referencia,
+                   c.nombre as cuenta
+              from recargas r join cuentas c on c.id = r.cuenta_id
+             where r.id = %s
+               for update of r
+            """,
+            (recarga_id,),
+        ).fetchone()
+
+        if recarga is None:
+            raise HTTPException(status_code=404, detail="La recarga no existe")
+
+        if recarga["estado"] != "pendiente":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Esta recarga ya está {recarga['estado']}.",
+            )
+
+        # Sin monto explícito se usa lo declarado más el bono del pack. Es el
+        # caso normal —transfirió lo que dijo— y evita retecleárlo.
+        pack = PACKS.get(recarga["pack_id"] or "")
+        monto = datos.monto
+        if monto is None:
+            monto = recarga["monto_declarado"] + (pack["bonus"] if pack else 0)
+
+        if monto <= 0:
+            raise HTTPException(status_code=422, detail="El monto a acreditar tiene que ser mayor que cero")
+
+        conn.execute("select saldo from cuentas where id = %s for update", (recarga["cuenta_id"],))
+
+        detalle = f"Recarga {recarga['referencia']}"
+        fila = _mover_saldo(conn, recarga["cuenta_id"], monto, "carga", detalle, admin)
+
+        conn.execute(
+            """
+            update recargas
+               set estado = 'acreditada', monto_acreditado = %s, nota = %s,
+                   resuelta_en = now(), resuelta_por = %s
+             where id = %s
+            """,
+            (monto, (datos.nota or "").strip() or None, admin["email"], recarga_id),
+        )
+
+    logger.info(
+        "%s acreditó la recarga %s de '%s': declarado %s, acreditado %s",
+        admin["email"], recarga["referencia"], recarga["cuenta"],
+        recarga["monto_declarado"], monto,
+    )
+    return {"saldo": fila["saldo"], "monto_acreditado": monto}
+
+
+@router.post("/recargas/{recarga_id}/rechazar")
+def rechazar_recarga(
+    recarga_id: str,
+    datos: ResolverRecarga,
+    admin: Annotated[dict, Depends(admin_actual)],
+):
+    """
+    Descarta una recarga sin mover saldo.
+
+    La nota es obligatoria: el cliente la va a ver, y "rechazada" sin motivo
+    genera una llamada telefónica que se podría haber evitado.
+
+    No se borra la fila. Que alguien declaró una transferencia que no llegó es
+    justamente lo que hay que poder revisar después.
+    """
+    nota = (datos.nota or "").strip()
+    if not nota:
+        raise HTTPException(
+            status_code=422,
+            detail="Escribe el motivo: el cliente lo va a ver.",
+        )
+
+    with pool.connection() as conn:
+        fila = conn.execute(
+            """
+            update recargas
+               set estado = 'rechazada', nota = %s, resuelta_en = now(), resuelta_por = %s
+             where id = %s and estado = 'pendiente'
+             returning id, referencia
+            """,
+            (nota, admin["email"], recarga_id),
+        ).fetchone()
+
+    if fila is None:
+        raise HTTPException(
+            status_code=409,
+            detail="La recarga no existe o ya estaba resuelta.",
+        )
+
+    logger.info("%s rechazó la recarga %s: %s", admin["email"], fila["referencia"], nota)
+    return {"ok": True}
 
 
 @router.get("/plantillas")

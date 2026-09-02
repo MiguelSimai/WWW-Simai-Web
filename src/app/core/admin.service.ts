@@ -35,6 +35,32 @@ export interface UsuarioAdmin {
   readonly ultimo_acceso_en: string | null;
 }
 
+/**
+ * Una transferencia que un cliente declaró, vista desde la administración.
+ *
+ * `monto_declarado` es lo que el cliente dice; `sugerido` es eso más el bono
+ * del pack, que es lo que corresponde acreditar **si la transferencia calza**
+ * con la cartola. El monto real lo decide quien verifica.
+ */
+export interface RecargaAdmin {
+  readonly id: string;
+  readonly estado: 'pendiente' | 'acreditada' | 'rechazada';
+  readonly pack_id: string | null;
+  readonly monto_declarado: number;
+  readonly referencia: string;
+  readonly monto_acreditado: number | null;
+  readonly nota: string | null;
+  readonly creada_en: string;
+  readonly resuelta_en: string | null;
+  readonly resuelta_por: string | null;
+  readonly cuenta_id: string;
+  readonly cuenta: string;
+  readonly cuenta_rut: string | null;
+  readonly declarada_por: string;
+  readonly bonus: number;
+  readonly sugerido: number;
+}
+
 export interface PlantillaAdmin {
   readonly id: string;
   readonly servicio: string;
@@ -59,6 +85,7 @@ export class AdminService {
   readonly cuentas = signal<readonly CuentaAdmin[]>([]);
   readonly usuarios = signal<readonly UsuarioAdmin[]>([]);
   readonly plantillas = signal<readonly PlantillaAdmin[]>([]);
+  readonly recargas = signal<readonly RecargaAdmin[]>([]);
 
   /**
    * Recarga el listado y **además la sesión**.
@@ -74,15 +101,17 @@ export class AdminService {
   }
 
   async cargar(): Promise<void> {
-    const [cuentas, usuarios, plantillas] = await Promise.all([
+    const [cuentas, usuarios, plantillas, recargas] = await Promise.all([
       firstValueFrom(this.http.get<{ cuentas: CuentaAdmin[] }>(`${this.base}/cuentas`)),
       firstValueFrom(this.http.get<{ usuarios: UsuarioAdmin[] }>(`${this.base}/usuarios`)),
       firstValueFrom(this.http.get<{ plantillas: PlantillaAdmin[] }>(`${this.base}/plantillas`)),
+      firstValueFrom(this.http.get<{ recargas: RecargaAdmin[] }>(`${this.base}/recargas`)),
     ]);
 
     this.cuentas.set(cuentas.cuentas);
     this.usuarios.set(usuarios.usuarios);
     this.plantillas.set(plantillas.plantillas);
+    this.recargas.set(recargas.recargas);
   }
 
   async crearCuenta(nombre: string, rut: string | null = null): Promise<void> {
@@ -146,6 +175,25 @@ export class AdminService {
       this.http.post(`${this.base}/cuentas/${cuentaId}/saldo`, { monto, referencia }),
     );
     await this.recargarConSesion();
+  }
+
+  /**
+   * Aprueba una recarga y mueve el saldo.
+   *
+   * `monto` es el de la cartola, no el que el cliente declaró: si transfirió
+   * menos de lo que dijo, se acredita lo que llegó.
+   */
+  async acreditarRecarga(id: string, monto: number, nota: string | null): Promise<void> {
+    await firstValueFrom(
+      this.http.post(`${this.base}/recargas/${id}/acreditar`, { monto, nota }),
+    );
+    await this.recargarConSesion();
+  }
+
+  /** Descarta una recarga sin mover saldo. La nota la ve el cliente. */
+  async rechazarRecarga(id: string, nota: string): Promise<void> {
+    await firstValueFrom(this.http.post(`${this.base}/recargas/${id}/rechazar`, { nota }));
+    await this.cargar();
   }
 
   async moverUsuario(usuarioId: string, cuentaId: string): Promise<void> {

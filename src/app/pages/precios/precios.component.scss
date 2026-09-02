@@ -316,3 +316,39 @@
   font-size: 0.9375rem;
   color: var(--c-error);
 }
+
+/* ===== Datos para transferir =============================================
+   Se muestran dentro del formulario, antes de pedir el N° de transferencia:
+   el orden de la pantalla sigue el orden de lo que el cliente tiene que hacer
+   —primero transferir, después declararlo—. */
+.banco {
+  margin: var(--sp-5) 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
+}
+
+.banco__titulo {
+  margin: 0 0 var(--sp-3);
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.banco__datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.banco__datos dt {
+  color: var(--c-text-muted);
+}
+
+.banco__datos dd {
+  margin: 0;
+  font-weight: 550;
+  color: var(--c-text);
+}
