@@ -275,7 +275,8 @@ Están explicadas en [backend/README.md](backend/README.md); en resumen:
 Sin librería de UI ni de estado: todo es HTML/SCSS propio. Locale `es-CL` registrado en
 [app.config.ts](src/app/app.config.ts), así que `date` y `currency` salen en formato chileno.
 
-**Backend**: FastAPI · psycopg 3 **sin pool** · Authlib (OAuth) · Postgres (Neon). `truststore`
+**Backend**: FastAPI · psycopg 3 **sin pool** · Authlib (OAuth) · **Azure Database for
+PostgreSQL** (`simai-db`). `truststore`
 se inyecta
 **antes** de cualquier import que arme un contexto TLS: hace falta cuando un antivirus con
 inspección web, un proxy corporativo o una VPN firma con su propio certificado raíz — está en el
@@ -283,8 +284,11 @@ almacén del sistema pero nunca en `certifi`, y sin esto las llamadas a Google f
 `CERTIFICATE_VERIFY_FAILED`.
 
 No hay pool de conexiones ni `lifespan`: los dos levantan hilos de fondo, y bajo Passenger esos
-hilos dejan el proceso colgado (ver **Despliegue**). Se abre una conexión por petición, y el
-pooling de verdad lo hace el *pooler* de Neon al que apunta `DATABASE_URL`.
+hilos dejan el proceso colgado (ver **Despliegue**). Se abre una conexión por petición.
+
+Con Neon eso no se notaba, porque su *pooler* amortiguaba. **Azure no trae nada equivalente
+encendido**, así que hoy cada petición paga el saludo TCP+TLS completo. Habilitar el PgBouncer
+integrado (parámetro `pgbouncer.enabled`, puerto 6432) es la mejora pendiente más concreta.
 
 ## Comandos
 
@@ -311,7 +315,7 @@ uvicorn app.main:app --reload --port 8000
 
 **Modelo de datos: migraciones, no un schema suelto.** Vive en `backend/migraciones/`, y cada
 base lleva la cuenta de lo que aplicó en su propia tabla `migraciones`. Cambiar de base —local,
-Neon, Azure— es apuntar `DATABASE_URL` al destino y correr `migrar.py`. `migrar.py --estado`
+Azure, otra— es apuntar `DATABASE_URL` al destino y correr `migrar.py`. `migrar.py --estado`
 muestra qué falta sin escribir nada.
 
 Para cambiar el modelo, un archivo nuevo con el número siguiente. **No editar uno ya
@@ -336,9 +340,25 @@ Usa `ng serve --host 0.0.0.0` si necesitas IPv4 o acceso desde la red.
 
 ## Despliegue
 
-El destino es **hosting compartido con cPanel**: el sitio estático en `simai.cl` y el backend en
-`api.simai.cl` bajo el *Python Selector* (Passenger), contra una base **Neon**. `environment.ts`
-—el de producción— ya apunta a `https://api.simai.cl`.
+**En producción.** El sitio estático en `simai.cl` y el backend en `api.simai.cl`, ambos en
+hosting compartido con cPanel (V2network) bajo el *Python Selector* (Passenger), contra
+**Azure Database for PostgreSQL**. `environment.ts` —el de producción— apunta a
+`https://api.simai.cl`.
+
+| Pieza | Carpeta en el hosting |
+|---|---|
+| Backend (*Application root*) | `/home/ingetecn/simai-api` |
+| Front (raíz web de simai.cl) | `/home/ingetecn/simai.cl` |
+
+**Las credenciales viven en las variables de entorno del Python App, no en un `.env`.** Las del
+panel ganan sobre el archivo, así que en el servidor no hay secretos en disco. Lo que cambia
+respecto del entorno local: `COOKIE_SECURE=true`, `FRONTEND_URL=https://simai.cl` y
+`GOOGLE_REDIRECT_URI=https://api.simai.cl/api/auth/retorno` —que además hay que registrar en
+Google Cloud Console—. Tras tocar cualquier variable, **Restart**: Passenger cachea el proceso.
+
+**La IP de salida del hosting es `208.91.188.116`**, y es la que Azure tiene que autorizar en su
+firewall. No la des por sentada mirando cPanel: la que el panel muestra es la de *entrada*, y no
+tiene por qué coincidir. La salida al puerto 5432 está confirmada abierta desde V2network.
 
 **Front.** `npm run build` deja el sitio en `dist/portal-solicitudes/browser`; se sube tal cual,
 con [public/.htaccess](public/.htaccess) incluido: fuerza HTTPS —la cookie va con `Secure`, así
@@ -357,9 +377,16 @@ parecen arbitrarias: nada de `a2wsgi`, nada de `psycopg_pool` (ver [db.py](backe
 `main.py` sin `lifespan`. Con cualquiera de los tres el proceso arranca colgado: no responde y no
 deja rastro en el log. Si la app deja de arrancar en silencio, ese es el primer sospechoso.
 
-[diagnostico.py](backend/diagnostico.py) se ejecuta desde el panel de cPanel y escribe
-`diagnostico.txt` al lado: dice si el hosting alcanza Neon o si su firewall de salida bloquea el
-puerto de Postgres — la diferencia entre arreglar código y pedirle algo al proveedor.
+Dos scripts se ejecutan desde *Setup Python App → Ejecutar script python* y dejan su resultado en
+un `.txt` al lado, porque la salida del panel a veces no se muestra:
+
+- [diagnostico.py](backend/diagnostico.py) — usa la configuración real y prueba la conexión de
+  punta a punta, incluida la autenticación
+- [prueba_azure.py](backend/prueba_azure.py) — **no** lee la configuración: informa la IP de
+  salida del hosting y si el puerto está abierto, sin tocar lo que sostiene el sitio. Se puede
+  correr con producción arriba
+
+Los dos responden la misma pregunta: si el problema es del código o de la red.
 
 En un servidor propio nada de esto hace falta: `uvicorn app.main:app` es ASGI nativo, y volver al
 pool de conexiones es cambiar sólo `db.py`.
@@ -465,6 +492,7 @@ backend/
   passenger_wsgi.py      Arranque bajo Passenger (cPanel). Con uvicorn no se usa
   asgi_wsgi.py           Adaptador ASGI→WSGI propio, sin hilos de fondo
   diagnostico.py         ¿El hosting alcanza la base? Escribe diagnostico.txt
+  prueba_azure.py        Igual, pero sin leer la config: corre con producción arriba
   schema.sql             Obsoleto: el modelo se mudó a migraciones/. No se ejecuta
   app/
     main.py              App, CORS con credenciales, SessionMiddleware, truststore
@@ -574,7 +602,11 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 - Los precios del catálogo son de referencia: ajustarlos antes de publicar
 - Falta página 404 propia; hoy cualquier ruta desconocida redirige al home
 - Enlaces de privacidad y términos apuntan a `#`
-- Antes de publicar (lista completa en [backend/README.md](backend/README.md)):
-  `COOKIE_SECURE=true` y todo por HTTPS, `SECRET_KEY` fuera del repo, front y API bajo el
-  mismo dominio para que la cookie `SameSite=Lax` viaje, límite de intentos por IP en el login,
-  y tarea periódica que borre sesiones vencidas
+- **Sin PgBouncer.** Azure no lo trae encendido y `db.py` no tiene pool, así que cada petición
+  paga el saludo TCP+TLS. Se habilita con el parámetro `pgbouncer.enabled` y el puerto 6432
+- **Firewall de Azure por revisar.** El hosting conecta sin que su IP esté autorizada
+  explícitamente, lo que sugiere una regla demasiado amplia. Hay que dejar sólo
+  `208.91.188.116` y la IP de desarrollo
+- De la lista de [backend/README.md](backend/README.md) siguen abiertos: límite de intentos por
+  IP en el login, y una tarea periódica que borre sesiones vencidas. El resto —HTTPS,
+  `COOKIE_SECURE=true`, `SECRET_KEY` fuera del repo, front y API en el mismo dominio— ya está

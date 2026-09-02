@@ -1,9 +1,14 @@
 """
 ¿Este hosting alcanza la base de Azure?
 
-Temporal: se corre una vez desde cPanel para saber si V2network deja salir al
-puerto de Postgres, ANTES de repuntar DATABASE_URL a Azure. Si se cambia la
-variable sin saber esto, el sitio queda caído hasta descubrirlo.
+Se corre desde cPanel cuando hay que decidir si un problema es del código o de
+la red: dice la IP de salida del hosting y si el puerto de Postgres está
+abierto. Se usó antes de repuntar DATABASE_URL a Azure —cambiar esa variable a
+ciegas deja el sitio caído hasta descubrirlo— y sirve igual cada vez que la
+base deje de responder desde producción.
+
+A diferencia de `diagnostico.py`, no lee la configuración: prueba Azure sin
+tocar lo que sostiene el sitio, así que puede correrse con producción arriba.
 
     cPanel -> Setup Python App -> "Ejecutar script python" -> prueba_azure.py
 
