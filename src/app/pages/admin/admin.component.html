@@ -43,6 +43,10 @@
       <p class="field__error" role="alert">{{ mensaje }}</p>
     }
 
+    @if (aviso(); as mensaje) {
+      <p class="admin__aviso" role="status">{{ mensaje }}</p>
+    }
+
     @if (!pendientes().length) {
       <p class="admin__vacio">Nada por verificar.</p>
     } @else {
@@ -348,6 +352,13 @@
             </div>
 
             <span class="usuario__cuenta">{{ u.cuenta ?? 'Sin cuenta' }}</span>
+
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="cerrarSesiones(u.id, u.email)">
+              Cerrar sesiones
+            </button>
 
             <label class="campo campo--inline">
               <span class="sr-only">Mover {{ u.email }} a otra cuenta</span>

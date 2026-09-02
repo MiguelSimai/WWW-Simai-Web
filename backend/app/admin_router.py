@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
+from . import sesiones
 from .catalogo import CATALOGO
 from .cuenta_router import PACKS
 from .db import pool
@@ -421,6 +422,34 @@ def mover_usuario(
 
 class Fusion(BaseModel):
     origen_id: str
+
+
+@router.post("/usuarios/{usuario_id}/cerrar-sesiones")
+def cerrar_sesiones(usuario_id: str, admin: Annotated[dict, Depends(admin_actual)]):
+    """
+    Cierra todas las sesiones abiertas de un usuario.
+
+    Hace falta cuando alguien deja de tener por qué entrar: se fue de la
+    empresa, se le movió de cuenta, o hay sospecha de que le robaron la
+    sesión. Sin esto su cookie sigue sirviendo hasta que expire —hasta ocho
+    horas— y quitarlo de la cuenta no le quita el acceso.
+
+    No borra al usuario ni sus datos: sólo lo obliga a volver a entrar.
+    """
+    with pool.connection() as conn:
+        usuario = conn.execute(
+            "select id, email from usuarios where id = %s", (usuario_id,)
+        ).fetchone()
+
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="El usuario no existe")
+
+        cerradas = sesiones.revocar_todas(conn, usuario_id)
+
+    logger.info(
+        "%s cerró %s sesión(es) de %s", admin["email"], cerradas, usuario["email"]
+    )
+    return {"cerradas": cerradas}
 
 
 @router.post("/cuentas/{destino_id}/fusionar")

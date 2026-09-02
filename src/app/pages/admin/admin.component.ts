@@ -262,6 +262,23 @@ export class AdminComponent implements OnInit {
     }
   }
 
+  /** Mensaje de la última acción, para confirmar que algo pasó. */
+  protected readonly aviso = signal<string | null>(null);
+
+  protected async cerrarSesiones(usuarioId: string, email: string): Promise<void> {
+    try {
+      const cerradas = await this.admin.cerrarSesiones(usuarioId);
+      this.aviso.set(
+        cerradas
+          ? `Se cerraron ${cerradas} sesión(es) de ${email}. Tendrá que volver a entrar.`
+          : `${email} no tenía sesiones abiertas.`,
+      );
+      this.error.set(null);
+    } catch (error) {
+      this.error.set(this.detalle(error, 'No pudimos cerrar sus sesiones.'));
+    }
+  }
+
   protected async quitar(cuentaId: string, servicio: string): Promise<void> {
     try {
       await this.admin.quitarProceso(cuentaId, servicio);

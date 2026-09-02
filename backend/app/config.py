@@ -12,7 +12,18 @@ class Config(BaseSettings):
     google_redirect_uri: str
 
     secret_key: str
-    session_hours: int = 8
+
+    # Ventana de la sesión: cuánto vive, y cuánto se le suma cada vez que se
+    # renueva. Tres horas con renovación se comporta mejor que ocho fijas —
+    # quien trabaja no se cae a media tarea, y quien se fue pierde el acceso
+    # antes.
+    session_hours: int = 3
+
+    # Tope absoluto desde el login: por muchas renovaciones que haya, la sesión
+    # no pasa de acá. Hace falta porque el panel consulta cada diez segundos
+    # mientras haya algo en proceso: sin tope, una pestaña abierta mantendría
+    # la sesión viva para siempre.
+    session_max_hours: int = 12
 
     # En producción tiene que ser True: sin esto la cookie viaja en claro.
     cookie_secure: bool = True

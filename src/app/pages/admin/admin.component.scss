@@ -331,3 +331,14 @@
   border-bottom: 1px solid var(--c-border);
   font-size: 0.9375rem;
 }
+
+/* Confirmación de una acción que no cambia nada visible en pantalla —cerrar
+   sesiones, por ejemplo—: sin esto no hay forma de saber que ocurrió. */
+.admin__aviso {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
+  color: var(--c-text);
+  font-size: 0.9375rem;
+}

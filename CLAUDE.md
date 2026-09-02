@@ -346,7 +346,22 @@ Piezas relacionadas:
 Están explicadas en [backend/README.md](backend/README.md); en resumen:
 
 - **Sesiones en Postgres, no JWT** — un JWT sigue siendo válido hasta que expira aunque
-  desactives al usuario; con sesiones en base cortas el acceso al instante
+  desactives al usuario; con sesiones en base cortas el acceso al instante. Y eso se hace con
+  `sesiones.revocar_todas(usuario_id)`, expuesta como
+  `POST /api/admin/usuarios/{id}/cerrar-sesiones`: `revocar()` necesita el token, y ese sólo lo
+  tiene el navegador del usuario, así que sin esta función sacar a alguien de una cuenta **no le
+  quitaba el acceso** hasta que su cookie expirara
+- **La sesión es de 3 horas renovables, con tope de 12** (`SESSION_HOURS` y
+  `SESSION_MAX_HOURS`). Se extiende sola cuando le queda **menos de un cuarto** de la ventana —no
+  en cada petición: cada escritura contra Azure cuesta ~250 ms—. Ocho horas fijas era lo peor de
+  los dos mundos: molestaba a quien trabajaba y protegía poco a quien se iba del computador.
+  El tope absoluto existe porque el panel consulta cada diez segundos mientras haya algo en
+  proceso; sin él, una pestaña abierta mantendría la sesión viva para siempre. **La cookie dura
+  el tope, no la ventana**: la autoridad sobre cuándo termina la sesión es la base
+- **Las sesiones vencidas se borran al crear una nueva**, en `sesiones.crear()`. Nada más las
+  limpiaba y la tabla crecía sola: con unos días de pruebas ya había 13 filas muertas de 16. Va
+  en el login —la operación más rara del sistema— para no necesitar cron. Las revocadas se
+  conservan hasta que les llega su expiración, para que el corte quede registrado
 - **Solo se guarda el hash del token** — si roban la base, esos hashes no sirven para entrar
 - **La identidad se enlaza por el `sub` de Google, no por el correo** — un correo puede cambiar
   de dueño dentro de una empresa; el `sub` es permanente
@@ -534,6 +549,7 @@ listado: la mayoría de las filas nunca se abre.
 | POST | `/api/admin/recargas/{id}/rechazar` | Descarta sin mover saldo. Nota obligatoria |
 | POST | `/api/admin/cuentas/{id}/saldo` | Acredita saldo a mano, sin recarga declarada |
 | POST | `/api/admin/cuentas/{id}/rut` | Fija el RUT. Valida dígito verificador (422) y unicidad (409) |
+| POST | `/api/admin/usuarios/{id}/cerrar-sesiones` | Obliga al usuario a volver a entrar |
 | — | `/api/admin/*` | Cuentas, procesos, usuarios, plantillas y catálogo (sólo `ADMIN_EMAILS`) |
 
 Los GET devuelven camelCase, que es lo que consume el TypeScript. Pedir una solicitud ajena
@@ -730,6 +746,8 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 - **Firewall de Azure por revisar.** El hosting conecta sin que su IP esté autorizada
   explícitamente, lo que sugiere una regla demasiado amplia. Hay que dejar sólo
   `208.91.188.116` y la IP de desarrollo
-- De la lista de [backend/README.md](backend/README.md) siguen abiertos: límite de intentos por
-  IP en el login, y una tarea periódica que borre sesiones vencidas. El resto —HTTPS,
-  `COOKIE_SECURE=true`, `SECRET_KEY` fuera del repo, front y API en el mismo dominio— ya está
+- De la lista de [backend/README.md](backend/README.md) sigue abierto el **límite de intentos por
+  IP en el login**. El resto —HTTPS, `COOKIE_SECURE=true`, `SECRET_KEY` fuera del repo, front y
+  API en el mismo dominio, limpieza de sesiones vencidas— ya está
+- **`ip` y `user_agent` de las sesiones se guardan y nadie los muestra.** Podrían alimentar un
+  "tus sesiones abiertas" para que el cliente cierre la de un equipo que ya no usa

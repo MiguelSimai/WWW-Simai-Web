@@ -196,6 +196,23 @@ export class AdminService {
     await this.cargar();
   }
 
+  /**
+   * Obliga a un usuario a volver a entrar.
+   *
+   * Su cookie sigue sirviendo hasta que expire, así que sacarlo de una cuenta
+   * no le quita el acceso: esto sí.
+   */
+  async cerrarSesiones(usuarioId: string): Promise<number> {
+    const r = await firstValueFrom(
+      this.http.post<{ cerradas: number }>(
+        `${this.base}/usuarios/${usuarioId}/cerrar-sesiones`,
+        {},
+      ),
+    );
+    await this.cargar();
+    return r.cerradas;
+  }
+
   async moverUsuario(usuarioId: string, cuentaId: string): Promise<void> {
     await firstValueFrom(
       this.http.post(`${this.base}/usuarios/${usuarioId}/cuenta`, { cuenta_id: cuentaId }),

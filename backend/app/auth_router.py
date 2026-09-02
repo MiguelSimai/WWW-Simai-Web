@@ -47,10 +47,15 @@ TENANT_PERSONAL = "9188040d-6c67-4c5b-b112-36a304b66dad"
 
 
 def _poner_cookie(respuesta: Response, token: str) -> None:
+    # La cookie vive el TOPE, no la ventana. La sesión se renueva sola en la
+    # base mientras el usuario esté activo, así que si la cookie muriera a las
+    # 3 horas lo echaría igual: la autoridad sobre cuándo termina la sesión es
+    # la base, y la cookie sólo tiene que durar lo suficiente para llegar hasta
+    # el tope absoluto.
     respuesta.set_cookie(
         key=sesiones.COOKIE,
         value=token,
-        max_age=config.session_hours * 3600,
+        max_age=config.session_max_hours * 3600,
         httponly=True,           # JavaScript no puede leerla: sobrevive a un XSS
         secure=config.cookie_secure,
         samesite="lax",          # no viaja en peticiones desde otros sitios

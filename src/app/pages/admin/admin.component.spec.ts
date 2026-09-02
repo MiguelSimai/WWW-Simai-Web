@@ -85,6 +85,7 @@ function adminDoble() {
     habilitarProceso: jasmine.createSpy('habilitarProceso').and.resolveTo(),
     quitarProceso: jasmine.createSpy('quitarProceso').and.resolveTo(),
     moverUsuario: jasmine.createSpy('moverUsuario').and.resolveTo(),
+    cerrarSesiones: jasmine.createSpy('cerrarSesiones').and.resolveTo(2),
   };
 }
 
@@ -139,6 +140,19 @@ describe('AdminComponent', () => {
 
     expect(doble.rechazarRecarga).not.toHaveBeenCalled();
     expect(html.querySelector('.field__error')?.textContent).toContain('motivo');
+  });
+
+  /**
+   * Sacar a alguien de una cuenta no le quita el acceso: su cookie sigue
+   * sirviendo hasta que expire. Esto es lo que sí lo corta.
+   */
+  it('cierra las sesiones de un usuario y lo confirma en pantalla', async () => {
+    html.querySelector<HTMLButtonElement>('.usuario .btn--ghost')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(doble.cerrarSesiones).toHaveBeenCalledWith('u-1');
+    expect(html.querySelector('.admin__aviso')?.textContent).toContain('volver a entrar');
   });
 
   it('carga las cuentas al entrar', () => {
