@@ -53,6 +53,12 @@ export class AdminComponent implements OnInit {
   /** Qué cuenta tiene abierto el formulario de saldo. */
   protected readonly acreditando = signal<string | null>(null);
 
+  // El error va junto al campo y no en el aviso de arriba: son formularios que
+  // se abren dentro de la ficha, y a esa altura de la página el mensaje de la
+  // cabecera queda fuera de la vista.
+  protected readonly errorSaldo = signal<string | null>(null);
+  protected readonly errorRut = signal<string | null>(null);
+
   protected readonly formSaldo = this.fb.nonNullable.group({
     monto: [0, [Validators.required]],
     referencia: ['', Validators.required],
@@ -140,53 +146,74 @@ export class AdminComponent implements OnInit {
     }
   }
 
+  /**
+   * El motivo que devuelve el servidor, que es el útil: cuál debería ser el
+   * dígito verificador, o cuánto saldo tiene la cuenta. Un mensaje propio sólo
+   * repetiría "no se pudo".
+   */
+  private detalle(error: unknown, porDefecto: string): string {
+    const detail = (error as { error?: { detail?: unknown } })?.error?.detail;
+    return typeof detail === 'string' && detail ? detail : porDefecto;
+  }
+
   protected abrirSaldo(cuenta: CuentaAdmin): void {
     this.acreditando.set(cuenta.id);
+    this.errorSaldo.set(null);
     this.formSaldo.reset({ monto: 0, referencia: '' });
   }
 
   protected cerrarSaldo(): void {
     this.acreditando.set(null);
+    this.errorSaldo.set(null);
   }
 
   protected async acreditar(cuentaId: string): Promise<void> {
     const { monto, referencia } = this.formSaldo.getRawValue();
 
-    if (this.formSaldo.invalid || Number(monto) === 0 || !referencia.trim()) {
+    if (Number(monto) === 0) {
+      this.errorSaldo.set('El monto no puede ser cero.');
+      return;
+    }
+
+    if (!referencia.trim()) {
+      this.errorSaldo.set('La referencia es obligatoria: es lo que permite reconciliar el pago.');
       return;
     }
 
     try {
       await this.admin.cargarSaldo(cuentaId, Number(monto), referencia.trim());
       this.acreditando.set(null);
-      this.error.set(null);
-    } catch {
-      // El backend rechaza el saldo negativo y la referencia vacía; el mensaje
-      // se queda genérico porque el 404 de esta sección no distingue causas.
-      this.error.set('No pudimos acreditar el saldo. Revisa el monto.');
+      this.errorSaldo.set(null);
+    } catch (error) {
+      this.errorSaldo.set(this.detalle(error, 'No pudimos acreditar el saldo.'));
     }
   }
 
   protected abrirRut(cuenta: CuentaAdmin): void {
     this.editandoRut.set(cuenta.id);
+    this.errorRut.set(null);
     this.formRut.reset({ rut: cuenta.rut ?? '' });
   }
 
   protected cerrarRut(): void {
     this.editandoRut.set(null);
+    this.errorRut.set(null);
   }
 
   protected async guardarRut(cuentaId: string): Promise<void> {
     const rut = this.formRut.getRawValue().rut.trim();
+
     if (!rut) {
+      this.errorRut.set('Escribe el RUT de la empresa.');
       return;
     }
+
     try {
       await this.admin.fijarRut(cuentaId, rut);
       this.editandoRut.set(null);
-      this.error.set(null);
-    } catch {
-      this.error.set('RUT inválido, o ya está en otra cuenta.');
+      this.errorRut.set(null);
+    } catch (error) {
+      this.errorRut.set(this.detalle(error, 'No pudimos guardar el RUT.'));
     }
   }
 

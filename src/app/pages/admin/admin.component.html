@@ -116,6 +116,10 @@
                   <input type="text" formControlName="rut" placeholder="76543210-3" />
                 </label>
 
+                @if (errorRut(); as mensaje) {
+                  <p class="field__error" role="alert">{{ mensaje }}</p>
+                }
+
                 <div class="alta__acciones">
                   <button type="submit" class="btn btn--primary">Guardar</button>
                   <button type="button" class="btn btn--ghost" (click)="cerrarRut()">
@@ -149,6 +153,10 @@
                     formControlName="referencia"
                     placeholder="N° de transferencia o folio" />
                 </label>
+
+                @if (errorSaldo(); as mensaje) {
+                  <p class="field__error" role="alert">{{ mensaje }}</p>
+                }
 
                 <div class="alta__acciones">
                   <button type="submit" class="btn btn--primary">Acreditar</button>
