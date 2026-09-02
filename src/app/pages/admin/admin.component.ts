@@ -38,6 +38,24 @@ export class AdminComponent implements OnInit {
 
   protected readonly formCuenta = this.fb.nonNullable.group({
     nombre: ['', Validators.required],
+    // El RUT no se exige al crear: la cuenta suele abrirse antes de tener los
+    // datos tributarios. Se completa después desde la ficha.
+    rut: [''],
+  });
+
+  /** Qué cuenta tiene abierto el formulario de RUT. */
+  protected readonly editandoRut = signal<string | null>(null);
+
+  protected readonly formRut = this.fb.nonNullable.group({
+    rut: ['', Validators.required],
+  });
+
+  /** Qué cuenta tiene abierto el formulario de saldo. */
+  protected readonly acreditando = signal<string | null>(null);
+
+  protected readonly formSaldo = this.fb.nonNullable.group({
+    monto: [0, [Validators.required]],
+    referencia: ['', Validators.required],
   });
 
   protected readonly formProceso = this.fb.nonNullable.group({
@@ -69,11 +87,14 @@ export class AdminComponent implements OnInit {
       return;
     }
     try {
-      await this.admin.crearCuenta(this.formCuenta.getRawValue().nombre.trim());
-      this.formCuenta.reset({ nombre: '' });
+      const { nombre, rut } = this.formCuenta.getRawValue();
+      await this.admin.crearCuenta(nombre.trim(), rut.trim() || null);
+      this.formCuenta.reset({ nombre: '', rut: '' });
       this.error.set(null);
     } catch {
-      this.error.set('No pudimos crear la cuenta.');
+      // El 422 del RUT inválido cae acá igual que cualquier otro fallo; el
+      // mensaje lo menciona porque es la causa más probable.
+      this.error.set('No pudimos crear la cuenta. Si escribiste un RUT, revísalo.');
     }
   }
 
@@ -116,6 +137,56 @@ export class AdminComponent implements OnInit {
       this.error.set(null);
     } catch {
       this.error.set('No pudimos habilitar el servicio. Revisa los datos del proceso.');
+    }
+  }
+
+  protected abrirSaldo(cuenta: CuentaAdmin): void {
+    this.acreditando.set(cuenta.id);
+    this.formSaldo.reset({ monto: 0, referencia: '' });
+  }
+
+  protected cerrarSaldo(): void {
+    this.acreditando.set(null);
+  }
+
+  protected async acreditar(cuentaId: string): Promise<void> {
+    const { monto, referencia } = this.formSaldo.getRawValue();
+
+    if (this.formSaldo.invalid || Number(monto) === 0 || !referencia.trim()) {
+      return;
+    }
+
+    try {
+      await this.admin.cargarSaldo(cuentaId, Number(monto), referencia.trim());
+      this.acreditando.set(null);
+      this.error.set(null);
+    } catch {
+      // El backend rechaza el saldo negativo y la referencia vacía; el mensaje
+      // se queda genérico porque el 404 de esta sección no distingue causas.
+      this.error.set('No pudimos acreditar el saldo. Revisa el monto.');
+    }
+  }
+
+  protected abrirRut(cuenta: CuentaAdmin): void {
+    this.editandoRut.set(cuenta.id);
+    this.formRut.reset({ rut: cuenta.rut ?? '' });
+  }
+
+  protected cerrarRut(): void {
+    this.editandoRut.set(null);
+  }
+
+  protected async guardarRut(cuentaId: string): Promise<void> {
+    const rut = this.formRut.getRawValue().rut.trim();
+    if (!rut) {
+      return;
+    }
+    try {
+      await this.admin.fijarRut(cuentaId, rut);
+      this.editandoRut.set(null);
+      this.error.set(null);
+    } catch {
+      this.error.set('RUT inválido, o ya está en otra cuenta.');
     }
   }
 

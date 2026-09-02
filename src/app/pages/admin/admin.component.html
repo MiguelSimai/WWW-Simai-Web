@@ -19,6 +19,10 @@
         <span>Nombre de la empresa</span>
         <input type="text" formControlName="nombre" placeholder="Acme Créditos" />
       </label>
+      <label class="campo campo--corto">
+        <span>RUT <span class="campo__opcional">(opcional)</span></span>
+        <input type="text" formControlName="rut" placeholder="76543210-3" />
+      </label>
       <button type="submit" class="btn btn--primary">Crear cuenta</button>
     </form>
 
@@ -39,7 +43,14 @@
                 <p class="cuenta__meta">
                   {{ cuenta.saldo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }} ·
                   {{ cuenta.usuarios }} {{ cuenta.usuarios === 1 ? 'usuario' : 'usuarios' }} ·
-                  {{ cuenta.solicitudes }} solicitudes
+                  {{ cuenta.solicitudes }} solicitudes ·
+                  <button type="button" class="cuenta__rut" (click)="abrirRut(cuenta)">
+                    @if (cuenta.rut) {
+                      {{ cuenta.rut }}
+                    } @else {
+                      Sin RUT
+                    }
+                  </button>
                 </p>
               </div>
               <div class="cuenta__acciones">
@@ -57,6 +68,10 @@
                     </select>
                   </label>
                 }
+
+                <button type="button" class="btn btn--secondary" (click)="abrirSaldo(cuenta)">
+                  Cargar saldo
+                </button>
 
                 <button type="button" class="btn btn--secondary" (click)="abrirProceso(cuenta)">
                   Habilitar servicio
@@ -91,6 +106,63 @@
               <p class="cuenta__sin">
                 Sin servicios habilitados: esta cuenta no puede enviar nada todavía.
               </p>
+            }
+
+            @if (editandoRut() === cuenta.id) {
+              <!-- A quién se le factura. El servidor valida el dígito verificador. -->
+              <form class="alta" [formGroup]="formRut" (ngSubmit)="guardarRut(cuenta.id)">
+                <label class="campo">
+                  <span>RUT de la empresa</span>
+                  <input type="text" formControlName="rut" placeholder="76543210-3" />
+                </label>
+
+                <div class="alta__acciones">
+                  <button type="submit" class="btn btn--primary">Guardar</button>
+                  <button type="button" class="btn btn--ghost" (click)="cerrarRut()">
+                    Cancelar
+                  </button>
+                </div>
+
+                <p class="alta__nota">
+                  Con o sin puntos, da igual: se guarda normalizado. Dos cuentas no pueden
+                  compartir RUT — si son la misma empresa, fusiónalas.
+                </p>
+              </form>
+            }
+
+            @if (acreditando() === cuenta.id) {
+              <!--
+                Acreditación manual: el cliente transfirió a la cuenta corriente
+                y acá se registra lo recibido. Es el cobro real mientras no haya
+                pasarela; lo de /precios acredita sin cobrar nada.
+              -->
+              <form class="alta" [formGroup]="formSaldo" (ngSubmit)="acreditar(cuenta.id)">
+                <label class="campo">
+                  <span>Monto en CLP</span>
+                  <input type="number" formControlName="monto" step="1000" />
+                </label>
+
+                <label class="campo">
+                  <span>Referencia del pago</span>
+                  <input
+                    type="text"
+                    formControlName="referencia"
+                    placeholder="N° de transferencia o folio" />
+                </label>
+
+                <div class="alta__acciones">
+                  <button type="submit" class="btn btn--primary">Acreditar</button>
+                  <button type="button" class="btn btn--ghost" (click)="cerrarSaldo()">
+                    Cancelar
+                  </button>
+                </div>
+
+                <p class="alta__nota">
+                  Queda registrado con tu correo en los movimientos de la cuenta, para poder
+                  reconciliar con la cartola. Un monto <strong>negativo</strong> corrige una
+                  carga anterior.
+                </p>
+              </form>
             }
 
             @if (editando() === cuenta.id) {

@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from .catalogo import CATALOGO
 from .db import pool
 from .dependencias import admin_actual
+from .rut import RutInvalido, normalizar
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -27,6 +28,13 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 class CuentaNueva(BaseModel):
     nombre: str = Field(min_length=1, max_length=200)
+    # Opcional al crear: muchas veces la cuenta se abre antes de tener los
+    # datos tributarios del cliente. Se completa después.
+    rut: str | None = None
+
+
+class RutCuenta(BaseModel):
+    rut: str = Field(min_length=1, max_length=20)
 
 
 class ProcesoNuevo(BaseModel):
@@ -45,6 +53,17 @@ class MoverUsuario(BaseModel):
     cuenta_id: str
 
 
+class CargaSaldo(BaseModel):
+    """Acreditación manual contra un pago recibido fuera del portal."""
+
+    # Positivo acredita; negativo corrige. Sin tope: si el monto se tecleó mal,
+    # se arregla con un movimiento negativo, no borrando el anterior.
+    monto: int
+    # Obligatoria: es lo que permite reconciliar después con la cartola del
+    # banco. Un movimiento de plata sin referencia no se puede auditar.
+    referencia: str = Field(min_length=1, max_length=200)
+
+
 class PlantillaNueva(BaseModel):
     servicio: str
     nombre: str = Field(min_length=1, max_length=200)
@@ -57,7 +76,7 @@ def listar_cuentas(admin: Annotated[dict, Depends(admin_actual)]):
     with pool.connection() as conn:
         cuentas = conn.execute(
             """
-            select c.id, c.nombre, c.saldo, c.contratado_en, c.creada_en,
+            select c.id, c.nombre, c.rut, c.saldo, c.contratado_en, c.creada_en,
                    (select count(*) from usuarios u where u.cuenta_id = c.id)
                      as usuarios,
                    (select count(*) from solicitudes s where s.cuenta_id = c.id)
@@ -91,14 +110,153 @@ def listar_cuentas(admin: Annotated[dict, Depends(admin_actual)]):
 
 @router.post("/cuentas", status_code=201)
 def crear_cuenta(datos: CuentaNueva, admin: Annotated[dict, Depends(admin_actual)]):
+    rut = None
+    if datos.rut and datos.rut.strip():
+        try:
+            rut = normalizar(datos.rut)
+        except RutInvalido as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     with pool.connection() as conn:
         fila = conn.execute(
-            "insert into cuentas (nombre) values (%s) returning id, nombre, saldo",
-            (datos.nombre.strip(),),
+            "insert into cuentas (nombre, rut) values (%s, %s) returning id, nombre, rut, saldo",
+            (datos.nombre.strip(), rut),
         ).fetchone()
 
     logger.info("Cuenta creada por %s: %s", admin["email"], datos.nombre)
     return dict(fila)
+
+
+@router.post("/cuentas/{cuenta_id}/rut")
+def fijar_rut(
+    cuenta_id: str,
+    datos: RutCuenta,
+    admin: Annotated[dict, Depends(admin_actual)],
+):
+    """
+    Fija o corrige el RUT de una cuenta.
+
+    Se valida el dígito verificador acá y no en la base: un RUT mal tecleado no
+    se descubre hasta que el SII rechaza la factura, y para entonces hay que
+    anularla y reemitir.
+    """
+    try:
+        rut = normalizar(datos.rut)
+    except RutInvalido as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    with pool.connection() as conn:
+        # El índice único es parcial (sólo donde hay valor), así que el choque
+        # se traduce a un mensaje entendible en vez de un error de constraint.
+        otra = conn.execute(
+            "select nombre from cuentas where rut = %s and id <> %s",
+            (rut, cuenta_id),
+        ).fetchone()
+
+        if otra is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Ese RUT ya está en la cuenta '{otra['nombre']}'. "
+                    "Si son la misma empresa, fusiónalas."
+                ),
+            )
+
+        fila = conn.execute(
+            "update cuentas set rut = %s where id = %s returning id, nombre, rut",
+            (rut, cuenta_id),
+        ).fetchone()
+
+    if fila is None:
+        raise HTTPException(status_code=404, detail="La cuenta no existe")
+
+    logger.info("%s fijó el RUT %s en la cuenta '%s'", admin["email"], rut, fila["nombre"])
+    return dict(fila)
+
+
+@router.post("/cuentas/{cuenta_id}/saldo")
+def cargar_saldo(
+    cuenta_id: str,
+    datos: CargaSaldo,
+    admin: Annotated[dict, Depends(admin_actual)],
+):
+    """
+    Acredita saldo a mano, contra un pago recibido fuera del portal.
+
+    Es el flujo de cobro real mientras no exista pasarela: el cliente
+    transfiere a la cuenta corriente y acá se registra lo recibido. Hasta ahora
+    el saldo sólo se podía cargar desde `/precios`, que acredita sin cobrar
+    nada — servía para probar, no para vender.
+
+    Un monto negativo corrige uno anterior. Se permite a propósito: un monto
+    mal tecleado hay que poder revertirlo, y borrar el movimiento original
+    dejaría el saldo sin explicación. Lo que no se permite es dejar la cuenta
+    en negativo.
+    """
+    referencia = datos.referencia.strip()
+    if not referencia:
+        raise HTTPException(status_code=422, detail="La referencia es obligatoria")
+
+    if datos.monto == 0:
+        raise HTTPException(status_code=422, detail="El monto no puede ser cero")
+
+    with pool.connection() as conn:
+        # `for update`: dos acreditaciones simultáneas no pueden leer el mismo
+        # saldo y dejar una de las dos sin efecto.
+        cuenta = conn.execute(
+            "select id, nombre, saldo from cuentas where id = %s for update",
+            (cuenta_id,),
+        ).fetchone()
+
+        if cuenta is None:
+            raise HTTPException(status_code=404, detail="La cuenta no existe")
+
+        if cuenta["saldo"] + datos.monto < 0:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"El ajuste dejaría el saldo en negativo: la cuenta tiene "
+                    f"${cuenta['saldo']:,}"
+                ).replace(",", "."),
+            )
+
+        # `contratado_en` se marca igual que en una contratación normal: es lo
+        # que decide si el cliente ve el panel o la pantalla de packs, y sin
+        # esto recibiría el saldo y seguiría viendo "elige un pack".
+        fila = conn.execute(
+            """
+            update cuentas
+               set saldo = saldo + %s,
+                   contratado_en = case
+                       when %s > 0 then coalesce(contratado_en, now())
+                       else contratado_en
+                   end
+             where id = %s
+             returning saldo, contratado_en
+            """,
+            (datos.monto, datos.monto, cuenta_id),
+        ).fetchone()
+
+        # Queda quién lo acreditó: mover plata a mano tiene que poder auditarse.
+        conn.execute(
+            """
+            insert into movimientos_saldo (cuenta_id, usuario_id, tipo, monto, detalle)
+                 values (%s, %s, %s, %s, %s)
+            """,
+            (
+                cuenta_id,
+                admin["id"],
+                "carga" if datos.monto > 0 else "ajuste",
+                datos.monto,
+                f"{referencia} — por {admin['email']}",
+            ),
+        )
+
+    logger.info(
+        "%s acreditó %s a la cuenta '%s' (ref: %s)",
+        admin["email"], datos.monto, cuenta["nombre"], referencia,
+    )
+    return {"saldo": fila["saldo"], "contratado": fila["contratado_en"] is not None}
 
 
 @router.post("/cuentas/{cuenta_id}/procesos", status_code=201)

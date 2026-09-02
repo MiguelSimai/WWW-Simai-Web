@@ -8,6 +8,7 @@ import { AdminComponent } from './admin.component';
 const ACME: CuentaAdmin = {
   id: 'c-1',
   nombre: 'Acme Créditos',
+  rut: '76543210-3',
   saldo: 106_110,
   usuarios: 2,
   solicitudes: 6,
@@ -26,6 +27,7 @@ const ACME: CuentaAdmin = {
 const SIN_SERVICIOS: CuentaAdmin = {
   id: 'c-2',
   nombre: 'Cliente nuevo',
+  rut: null,
   saldo: 0,
   usuarios: 1,
   solicitudes: 0,
@@ -119,7 +121,33 @@ describe('AdminComponent', () => {
     html.querySelector<HTMLFormElement>('.nueva')!.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    expect(doble.crearCuenta).toHaveBeenCalledWith('Nueva Empresa');
+    // Sin RUT: el campo es opcional y viaja como null.
+    expect(doble.crearCuenta).toHaveBeenCalledWith('Nueva Empresa', null);
+  });
+
+  it('crea una cuenta con RUT cuando se escribe', async () => {
+    const [nombre, rut] = Array.from(
+      html.querySelectorAll<HTMLInputElement>('.nueva input'),
+    );
+    nombre.value = 'Nueva Empresa';
+    nombre.dispatchEvent(new Event('input'));
+    rut.value = '76.543.210-3';
+    rut.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    html.querySelector<HTMLFormElement>('.nueva')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    // Se manda tal cual se escribió: normalizarlo es cosa del servidor, que es
+    // quien además valida el dígito verificador.
+    expect(doble.crearCuenta).toHaveBeenCalledWith('Nueva Empresa', '76.543.210-3');
+  });
+
+  it('muestra el RUT de la cuenta, o que falta', () => {
+    const botones = Array.from(html.querySelectorAll('.cuenta__rut'));
+
+    expect(botones[0].textContent?.trim()).toBe('76543210-3');
+    expect(botones[1].textContent?.trim()).toBe('Sin RUT');
   });
 
   it('no crea una cuenta sin nombre', async () => {

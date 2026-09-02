@@ -96,8 +96,26 @@ Hay **dos** consolas, y conviene no confundirlas:
 El orden al incorporar un cliente es: primero el proceso en IA-ADMIN —que devuelve su código y
 su id—, y después en `/admin` se crea la cuenta y se le apunta ese proceso.
 
-`/admin` evita tocar SQL para crear cuentas, habilitar servicios y mover usuarios entre
-cuentas.
+`/admin` evita tocar SQL para crear cuentas, habilitar servicios, mover usuarios y acreditar
+saldo.
+
+**La acreditación manual es el flujo de cobro real** mientras no exista pasarela: el cliente
+transfiere a la cuenta corriente y en `/admin` se registra lo recibido, con una **referencia
+obligatoria** —número de transferencia o folio— que es lo que permite reconciliar después con la
+cartola. Queda el movimiento en `movimientos_saldo` con el correo de quien lo acreditó: mover
+plata a mano tiene que poder auditarse.
+
+Un **monto negativo corrige** una carga anterior, y se permite a propósito: un monto mal tecleado
+hay que poder revertirlo, y borrar el movimiento original dejaría el saldo sin explicación. Lo
+único que se rechaza es dejar la cuenta en negativo. La acreditación marca `contratado_en` igual
+que una contratación normal — sin eso el cliente recibiría el saldo y seguiría viendo la pantalla
+de packs.
+
+El **RUT** vive en `cuentas`, porque se le factura a la empresa y no a la persona que subió los
+archivos. Es opcional al crear la cuenta —suele abrirse antes de tener los datos tributarios— y
+se completa después. [rut.py](backend/app/rut.py) valida el dígito verificador y normaliza a
+`76543210-3`: un RUT mal tecleado no se descubre hasta que el SII rechaza la factura, y ahí ya
+hay que anular y reemitir. Un índice único parcial impide que dos cuentas compartan RUT.
 
 **Mover un usuario no mueve su saldo ni su historial**: quedan en la cuenta que deja. Para
 consolidar de verdad hay que **fusionar** (`Absorber cuenta…`), que traspasa usuarios, saldo, la
@@ -457,6 +475,8 @@ listado: la mayoría de las filas nunca se abre.
 | GET | `/api/solicitudes/excel` | La planilla de resultados de un rango de fechas |
 | POST | `/api/callbacks/expediente` | Recibe el resultado consolidado desde N8N |
 | GET | `/api/salud` | Health check |
+| POST | `/api/admin/cuentas/{id}/saldo` | Acredita saldo a mano. Monto negativo corrige |
+| POST | `/api/admin/cuentas/{id}/rut` | Fija el RUT. Valida dígito verificador (422) y unicidad (409) |
 | — | `/api/admin/*` | Cuentas, procesos, usuarios, plantillas y catálogo (sólo `ADMIN_EMAILS`) |
 
 Los GET devuelven camelCase, que es lo que consume el TypeScript. Pedir una solicitud ajena
@@ -539,6 +559,7 @@ backend/
     medicion.py          Unidades a cobrar (pypdf, mutagen)
     catalogo.py          Precios y formatos — fuente de verdad del cobro
     resumen.py           Del JSON del motor a una frase para el panel
+    rut.py               Normaliza y valida el RUT chileno (dígito verificador)
     excel.py             La planilla que descarga el cliente, según su plantilla
     dependencias.py      sesion_actual, compartida por los routers
     sesiones.py          Crear, leer y revocar sesiones
@@ -624,7 +645,10 @@ El build de producción limita 500 kB (warning) / 1 MB (error) para el bundle in
 - **No hay invitaciones**: cualquiera con cuenta de Google puede registrarse. Queda sin acceso a
   nada —cuenta propia y vacía— pero queda registrado, y hay que habilitarlo desde `/admin`
 - Sin pantalla `/solicitud/:codigo` ni descarga del resultado
-- Sin pasarela de pago: `contratar` acredita saldo sin cobrar
+- Sin pasarela de pago. `contratar` en `/precios` acredita sin cobrar; el cobro real hoy es
+  transferencia + acreditación manual desde `/admin`
+- **Facturación incompleta.** Está el RUT, pero una factura chilena necesita además razón
+  social, giro y dirección. Se agregan cuando esté definido cómo se emite
 - El **resultado consolidado por expediente** —cruzar contrato con pagaré para detectar
   diferencias, que es lo que promete el catálogo— lo arma N8N, no el portal. Hoy cada documento
   se procesa por separado

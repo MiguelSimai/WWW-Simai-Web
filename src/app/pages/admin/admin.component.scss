@@ -230,3 +230,25 @@
     gap: var(--sp-2);
   }
 }
+
+/* El RUT se muestra en la ficha y abre su formulario: es un botón, pero tiene
+   que leerse como parte de la línea de datos, no como una acción más. */
+.cuenta__rut {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--c-brand);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
+.cuenta__rut:hover {
+  text-decoration-style: solid;
+}
+
+.campo__opcional {
+  color: var(--c-text-muted);
+  font-weight: 400;
+}
