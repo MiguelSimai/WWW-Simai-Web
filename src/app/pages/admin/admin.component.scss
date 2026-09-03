@@ -342,3 +342,42 @@
   color: var(--c-text);
   font-size: 0.9375rem;
 }
+
+/* ===== Buscadores ========================================================
+   Las dos listas crecen con los registros, no con los clientes: cada persona
+   que entra crea un usuario y una cuenta vacía. Buscar es lo que se usa
+   cuando alguien llama por teléfono. */
+.buscar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.buscar .campo--ancho {
+  flex: 1 1 20rem;
+}
+
+.buscar input {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+}
+
+.buscar__mas {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-brand);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  white-space: nowrap;
+}

@@ -64,7 +64,7 @@
         <h2 class="recargas__titulo">Recargas de saldo</h2>
 
         <ul class="recargas__lista">
-          @for (r of recargas(); track r.id) {
+          @for (r of recargasVisibles(); track r.id) {
             <li class="recargas__fila">
               <span class="badge" [class]="'badge ' + BADGE_RECARGA[r.estado]">
                 {{ ESTADO_RECARGA[r.estado] }}
@@ -90,6 +90,12 @@
             </li>
           }
         </ul>
+
+        @if (recargasOcultas() && !verTodasRecargas()) {
+          <button type="button" class="recargas__mas" (click)="verTodasRecargas.set(true)">
+            Ver {{ recargasOcultas() }} más
+          </button>
+        }
 
         <p class="recargas__pie">
           El saldo se acredita cuando verificamos la transferencia con el banco.
@@ -143,6 +149,39 @@
     <!-- ===== Solicitudes ===== -->
     <h2 class="panel__seccion">Mis solicitudes</h2>
 
+    <!--
+      Buscar y rango de fechas van al servidor. Con más de una página, filtrar
+      en el navegador sólo alcanzaría lo cargado.
+    -->
+    <form class="buscador" (submit)="aplicarBusqueda($event)">
+      <label class="campo campo--ancho">
+        <span class="sr-only">Buscar por número de expediente o código</span>
+        <input
+          type="search"
+          placeholder="Buscar por N° de expediente o código"
+          [value]="busqueda()"
+          (input)="escribir(busqueda, $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Desde</span>
+        <input type="date" [value]="filtroDesde()" (input)="escribir(filtroDesde, $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Hasta</span>
+        <input type="date" [value]="filtroHasta()" (input)="escribir(filtroHasta, $event)" />
+      </label>
+
+      <button type="submit" class="btn btn--secondary">Filtrar</button>
+
+      @if (hayFiltroActivo()) {
+        <button type="button" class="btn btn--ghost" (click)="limpiarFiltros()">
+          Limpiar
+        </button>
+      }
+    </form>
+
     <div class="filtros" role="group" aria-label="Filtrar solicitudes por estado">
       @for (opcion of opciones; track opcion.valor) {
         <button
@@ -158,7 +197,7 @@
     </div>
 
     @if (visibles().length) {
-      <ul class="solicitudes" aria-live="polite">
+      <ul class="solicitudes solicitudes--densa" aria-live="polite">
         @for (solicitud of visibles(); track solicitud.codigo) {
           <li class="solicitud">
             <span class="solicitud__icono">
@@ -240,9 +279,37 @@
           </li>
         }
       </ul>
+
+      <!-- Paginación: sin esto, todo lo que pasara de la primera página
+           simplemente no existía para el cliente. -->
+      @if (hayMas() || pagina() > 1) {
+        <nav class="paginas" aria-label="Páginas de solicitudes">
+          <button
+            type="button"
+            class="btn btn--ghost"
+            [disabled]="pagina() === 1"
+            (click)="cambiarPagina(-1)">
+            ← Anteriores
+          </button>
+
+          <span class="paginas__actual">Página {{ pagina() }}</span>
+
+          <button
+            type="button"
+            class="btn btn--ghost"
+            [disabled]="!hayMas()"
+            (click)="cambiarPagina(1)">
+            Siguientes →
+          </button>
+        </nav>
+      }
     } @else {
       <p class="vacio">
-        No tienes solicitudes en este estado. Prueba con otro filtro.
+        @if (hayFiltroActivo()) {
+          No hay solicitudes que calcen con este filtro.
+        } @else {
+          Todavía no has enviado nada.
+        }
       </p>
     }
 

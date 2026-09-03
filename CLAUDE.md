@@ -100,6 +100,21 @@ su id—, y después en `/admin` se crea la cuenta y se le apunta ese proceso.
 `/admin` evita tocar SQL para crear cuentas, habilitar servicios, mover usuarios y acreditar
 saldo.
 
+**Las dos listas crecen con los registros, no con los clientes.** Cada persona que entra por
+primera vez crea un usuario **y** una cuenta propia y vacía, así que un puñado de curiosos
+entierra a los clientes reales. Por eso las cuentas **sin actividad** —sin saldo, sin usuarios,
+sin expedientes y sin servicios— se ocultan por defecto, con un enlace que dice cuántas son. Al
+crear una cuenta desde `/admin` el interruptor se enciende solo: nace vacía y si no, quedaría
+escondida justo después de crearla.
+
+El buscador de cuentas **pasa por encima de ese filtro**: si escribiste un nombre, quieres esa
+cuenta aunque no tenga actividad.
+
+A diferencia de `/panel`, acá se filtra **en el navegador** y las consultas no llevan `limit`. Es
+deliberado mientras el volumen sea de decenas: así no hay datos escondidos tras una paginación
+que nadie pidió. Cuando una cuenta con muchos usuarios haga lento el `/admin`, esto tiene que
+moverse al servidor — el criterio es el mismo que se aplicó en `/panel`.
+
 **La acreditación manual es el flujo de cobro real** mientras no exista pasarela: el cliente
 transfiere a la cuenta corriente y en `/admin` se registra lo recibido, con una **referencia
 obligatoria** —número de transferencia o folio— que es lo que permite reconciliar después con la
@@ -525,6 +540,15 @@ todavía se muestra en la landing y en precios, pero no acepta cargas.
 En `/panel`, los documentos de un expediente se piden **al abrir el desplegable**, no con el
 listado: la mayoría de las filas nunca se abre.
 
+**Filtrar, buscar y contar los hace el servidor**, no el navegador. Antes el front cargaba la
+primera página de 25 y filtraba sobre ella: con 30 expedientes, cinco no aparecían nunca y nada
+lo indicaba. Los contadores de los chips decían "cuántos hay entre los 25 cargados", que el
+cliente lee como "cuántos hay".
+
+`conteos` se calcula con el mismo `where` de la lista pero **sin** el filtro de estado —es el que
+alimenta—, así que los chips dicen cuántos hay de cada estado dentro del rango y la búsqueda
+actuales. El polling conserva el filtro: `cargar()` lee el que esté puesto.
+
 ## Endpoints del backend
 
 | Método | Ruta | Qué hace |
@@ -539,7 +563,7 @@ listado: la mayoría de las filas nunca se abre.
 | POST | `/api/cuenta/recargas` | Declara una transferencia. **No acredita saldo** |
 | GET | `/api/cuenta/recargas` | Las recargas de la cuenta, con su estado |
 | POST | `/api/solicitudes` | Recibe un expediente y lo despacha al motor |
-| GET | `/api/solicitudes` | Los expedientes del usuario, 25 por página |
+| GET | `/api/solicitudes` | Los expedientes de la cuenta. Params: `pagina`, `estado`, `desde`, `hasta`, `buscar` |
 | GET | `/api/solicitudes/{codigo}` | Uno, con el detalle de sus documentos |
 | GET | `/api/solicitudes/excel` | La planilla de resultados de un rango de fechas |
 | POST | `/api/callbacks/expediente` | Recibe el resultado consolidado desde N8N |

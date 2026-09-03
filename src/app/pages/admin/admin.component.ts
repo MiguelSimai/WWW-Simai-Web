@@ -41,13 +41,65 @@ export class AdminComponent implements OnInit {
   /** A qué cuenta se le está habilitando un servicio. */
   protected readonly editando = signal<string | null>(null);
 
-  /** Los usuarios que están solos en su cuenta: candidatos a agrupar. */
-  protected readonly sueltos = computed(() =>
-    this.usuarios().filter((u) => {
-      const cuenta = this.cuentas().find((c) => c.id === u.cuenta_id);
-      return !cuenta || cuenta.usuarios === 1;
-    }),
+  /* ===== Búsqueda y ruido =================================================
+     Cada persona que entra por primera vez crea un usuario **y** una cuenta
+     propia y vacía. O sea que las dos listas crecen con los registros, no con
+     los clientes: sin filtrar, un puñado de curiosos entierra a los clientes
+     reales. */
+
+  protected readonly busquedaCuentas = signal('');
+  protected readonly busquedaUsuarios = signal('');
+
+  /** Las cuentas vacías se ocultan por defecto: son registros, no clientes. */
+  protected readonly mostrarVacias = signal(false);
+
+  /**
+   * Una cuenta sin nada: ni saldo, ni usuarios, ni expedientes, ni servicios.
+   * Con cualquiera de las cuatro cosas ya es algo que alguien decidió.
+   */
+  private sinActividad(c: CuentaAdmin): boolean {
+    return (
+      c.saldo === 0 && c.usuarios === 0 && c.solicitudes === 0 && c.procesos.length === 0
+    );
+  }
+
+  protected readonly cuentasVisibles = computed(() => {
+    const texto = this.busquedaCuentas().trim().toLowerCase();
+
+    return this.cuentas().filter((c) => {
+      // La búsqueda pasa por encima del filtro de vacías: si escribiste un
+      // nombre, quieres esa cuenta exista o no tenga actividad.
+      if (texto) {
+        return (
+          c.nombre.toLowerCase().includes(texto) || (c.rut ?? '').includes(texto)
+        );
+      }
+      return this.mostrarVacias() || !this.sinActividad(c);
+    });
+  });
+
+  protected readonly cuentasOcultas = computed(() =>
+    this.busquedaCuentas().trim() || this.mostrarVacias()
+      ? 0
+      : this.cuentas().filter((c) => this.sinActividad(c)).length,
   );
+
+  protected readonly usuariosVisibles = computed(() => {
+    const texto = this.busquedaUsuarios().trim().toLowerCase();
+    if (!texto) {
+      return this.usuarios();
+    }
+    return this.usuarios().filter(
+      (u) =>
+        u.email.toLowerCase().includes(texto) ||
+        (u.nombre ?? '').toLowerCase().includes(texto) ||
+        (u.cuenta ?? '').toLowerCase().includes(texto),
+    );
+  });
+
+  protected escribir(destino: { set(v: string): void }, evento: Event): void {
+    destino.set((evento.target as HTMLInputElement).value);
+  }
 
   protected readonly formCuenta = this.fb.nonNullable.group({
     nombre: ['', Validators.required],
@@ -108,6 +160,9 @@ export class AdminComponent implements OnInit {
     try {
       const { nombre, rut } = this.formCuenta.getRawValue();
       await this.admin.crearCuenta(nombre.trim(), rut.trim() || null);
+      // Nace sin actividad, así que sin esto quedaría oculta justo después de
+      // crearla.
+      this.mostrarVacias.set(true);
       this.formCuenta.reset({ nombre: '', rut: '' });
       this.error.set(null);
     } catch {

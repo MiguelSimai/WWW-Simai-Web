@@ -65,16 +65,68 @@ def _referencia(codigo: str, numero_cliente: str | None) -> str:
 _POR_PAGINA = 25
 
 
+# Estados que el panel conoce. Se validan acá para no armar un `where` con lo
+# que llegue en la URL.
+_ESTADOS = ("procesando", "revisar", "completada", "error")
+
+
+def _filtros(cuenta_id: str, estado, desde, hasta, buscar) -> tuple[str, list]:
+    """
+    Arma el `where` común de la lista y de los contadores.
+
+    Los dos tienen que filtrar por lo mismo o los números de los chips no
+    cuadrarían con lo que se ve debajo.
+    """
+    condiciones = ["s.cuenta_id = %s"]
+    valores: list = [cuenta_id]
+
+    if estado in _ESTADOS:
+        condiciones.append("s.estado = %s")
+        valores.append(estado)
+
+    if desde:
+        condiciones.append("s.creada_en >= %s")
+        valores.append(desde)
+
+    if hasta:
+        # El `hasta` que el usuario elige es un día completo, no su medianoche.
+        condiciones.append("s.creada_en < (%s::date + 1)")
+        valores.append(hasta)
+
+    if buscar:
+        # Por número de expediente o por código: es como el cliente se refiere
+        # a lo que envió cuando llama por teléfono.
+        condiciones.append("(s.numero_cliente ilike %s or s.codigo ilike %s)")
+        patron = f"%{buscar.strip()}%"
+        valores += [patron, patron]
+
+    return " and ".join(condiciones), valores
+
+
 @router.get("")
 def listar_solicitudes(
     usuario: Annotated[dict, Depends(sesion_actual)],
+    conn: Annotated[Any, Depends(conexion)],
     pagina: int = 1,
+    estado: str | None = None,
+    desde: str | None = None,
+    hasta: str | None = None,
+    buscar: str | None = None,
 ):
     """
     Los expedientes de la cuenta, del más reciente al más antiguo.
 
     Son de la cuenta, no de la persona: dos usuarios de la misma empresa ven lo
     mismo, igual que comparten el saldo.
+
+    **Filtrar y contar se hacen acá, no en el navegador.** Antes el front
+    cargaba la primera página y filtraba sobre ella: los expedientes más allá
+    del número 25 no aparecían nunca, y los contadores de estado decían cuántos
+    había *entre los 25 cargados*, que no es lo que el cliente lee.
+
+    `conteos` viene de la misma consulta filtrada pero **sin** el filtro de
+    estado: los chips tienen que decir cuántos hay de cada estado dentro del
+    rango y la búsqueda actuales, no cuántos quedan tras aplicarse a sí mismos.
 
     `etiqueta` es lo que el panel muestra como nombre de lo enviado: el número
     del expediente si subió una carpeta, o el nombre del archivo si fue uno
@@ -83,27 +135,36 @@ def listar_solicitudes(
     pagina = max(1, pagina)
     desplazamiento = (pagina - 1) * _POR_PAGINA
 
-    with pool.connection() as conn:
-        filas = conn.execute(
-            """
-            select s.codigo, s.servicio, s.numero_cliente, s.unidades, s.costo,
-                   s.estado, s.resumen, s.error, s.creada_en,
-                   count(d.id)                       as documentos,
-                   min(d.archivo)                    as primer_archivo
-              from solicitudes s
-              left join documentos d on d.solicitud_id = s.id
-             where s.cuenta_id = %s
-             group by s.id
-             order by s.creada_en desc
-             limit %s offset %s
-            """,
-            (usuario["cuenta_id"], _POR_PAGINA + 1, desplazamiento),
-        ).fetchall()
+    where, valores = _filtros(usuario["cuenta_id"], estado, desde, hasta, buscar)
 
-        total = conn.execute(
-            "select count(*) as n from solicitudes where cuenta_id = %s",
-            (usuario["cuenta_id"],),
-        ).fetchone()["n"]
+    filas = conn.execute(
+        f"""
+        select s.codigo, s.servicio, s.numero_cliente, s.unidades, s.costo,
+               s.estado, s.resumen, s.error, s.creada_en,
+               count(d.id)                       as documentos,
+               min(d.archivo)                    as primer_archivo
+          from solicitudes s
+          left join documentos d on d.solicitud_id = s.id
+         where {where}
+         group by s.id
+         order by s.creada_en desc
+         limit %s offset %s
+        """,
+        valores + [_POR_PAGINA + 1, desplazamiento],
+    ).fetchall()
+
+    # Los contadores ignoran el filtro de estado, que es el que alimentan.
+    where_conteo, valores_conteo = _filtros(usuario["cuenta_id"], None, desde, hasta, buscar)
+    por_estado = conn.execute(
+        f"select s.estado, count(*) as n from solicitudes s where {where_conteo} group by s.estado",
+        valores_conteo,
+    ).fetchall()
+
+    conteos = {e: 0 for e in _ESTADOS}
+    for fila in por_estado:
+        if fila["estado"] in conteos:
+            conteos[fila["estado"]] = fila["n"]
+    conteos["todas"] = sum(conteos[e] for e in _ESTADOS)
 
     # Se pidió una de más solo para saber si hay página siguiente.
     hay_mas = len(filas) > _POR_PAGINA
@@ -111,8 +172,10 @@ def listar_solicitudes(
 
     return {
         "solicitudes": [_resumir(f) for f in filas],
-        "total": total,
+        "total": conteos["todas"],
+        "conteos": conteos,
         "pagina": pagina,
+        "por_pagina": _POR_PAGINA,
         "hay_mas": hay_mas,
     }
 

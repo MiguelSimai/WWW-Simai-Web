@@ -131,13 +131,34 @@
     <!-- ===== Cuentas ===== -->
     <h2 class="admin__seccion">Cuentas</h2>
 
+    <div class="buscar">
+      <label class="campo campo--ancho">
+        <span class="sr-only">Buscar cuenta por nombre o RUT</span>
+        <input
+          type="search"
+          placeholder="Buscar por empresa o RUT"
+          [value]="busquedaCuentas()"
+          (input)="escribir(busquedaCuentas, $event)" />
+      </label>
+
+      @if (cuentasOcultas()) {
+        <button type="button" class="buscar__mas" (click)="mostrarVacias.set(true)">
+          Mostrar {{ cuentasOcultas() }} cuenta(s) sin actividad
+        </button>
+      } @else if (mostrarVacias()) {
+        <button type="button" class="buscar__mas" (click)="mostrarVacias.set(false)">
+          Ocultar las cuentas sin actividad
+        </button>
+      }
+    </div>
+
     @if (cargando()) {
       <p class="admin__vacio">Cargando…</p>
     } @else if (!cuentas().length) {
       <p class="admin__vacio">Todavía no hay cuentas.</p>
     } @else {
       <ul class="cuentas">
-        @for (cuenta of cuentas(); track cuenta.id) {
+        @for (cuenta of cuentasVisibles(); track cuenta.id) {
           <li class="cuenta card">
             <div class="cuenta__cabecera">
               <div>
@@ -342,9 +363,20 @@
       de su empresa para que compartan saldo y expedientes.
     </p>
 
-    @if (usuarios().length) {
+    <div class="buscar">
+      <label class="campo campo--ancho">
+        <span class="sr-only">Buscar usuario por correo, nombre o cuenta</span>
+        <input
+          type="search"
+          placeholder="Buscar por correo, nombre o cuenta"
+          [value]="busquedaUsuarios()"
+          (input)="escribir(busquedaUsuarios, $event)" />
+      </label>
+    </div>
+
+    @if (usuariosVisibles().length) {
       <ul class="usuarios">
-        @for (u of usuarios(); track u.id) {
+        @for (u of usuariosVisibles(); track u.id) {
           <li class="usuario">
             <div class="usuario__quien">
               <span class="usuario__nombre">{{ u.nombre || u.email }}</span>

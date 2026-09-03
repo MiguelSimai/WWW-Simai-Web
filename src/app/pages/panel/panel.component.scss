@@ -488,3 +488,71 @@
   color: var(--c-text-muted);
   font-size: 0.875rem;
 }
+
+/* ===== Buscador y filtros ================================================
+   Buscar por número es como el cliente se refiere a lo que envió cuando
+   llama por teléfono; el rango de fechas es para revisar un período. */
+.buscador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.buscador .campo {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}
+
+.buscador .campo--ancho {
+  flex: 1 1 18rem;
+}
+
+.buscador input {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  width: 100%;
+}
+
+/* ===== Paginación ======================================================== */
+.paginas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
+}
+
+.paginas__actual {
+  color: var(--c-text-muted);
+  font-size: 0.9375rem;
+}
+
+/* ===== Densidad ==========================================================
+   Con 30 expedientes, tarjetas de 90px obligan a desplazarse para revisar
+   cualquier cosa. Compactadas caben unas tres veces más por pantalla. */
+.solicitudes--densa .solicitud {
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+}
+
+.recargas__mas {
+  margin-top: var(--sp-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-brand);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}

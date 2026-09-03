@@ -11,7 +11,7 @@ import {
   Solicitud,
 } from '../../core/modelos';
 import { CuentaService } from '../../core/cuenta.service';
-import { SolicitudesService } from '../../core/solicitudes.service';
+import { FILTRO_VACIO, SolicitudesService } from '../../core/solicitudes.service';
 import { IconComponent, IconName } from '../../ui/icon/icon.component';
 
 type Filtro = EstadoSolicitud | 'todas';
@@ -49,6 +49,21 @@ export class PanelComponent implements OnInit, OnDestroy {
    * verificó o se rechazó.
    */
   protected readonly recargas = this.cuenta.recargas;
+
+  /** Cuántas recargas se ven sin desplegar. Las viejas rara vez importan. */
+  private static readonly RECARGAS_VISIBLES = 3;
+
+  protected readonly verTodasRecargas = signal(false);
+
+  protected readonly recargasVisibles = computed(() =>
+    this.verTodasRecargas()
+      ? this.recargas()
+      : this.recargas().slice(0, PanelComponent.RECARGAS_VISIBLES),
+  );
+
+  protected readonly recargasOcultas = computed(() =>
+    Math.max(0, this.recargas().length - PanelComponent.RECARGAS_VISIBLES),
+  );
   protected readonly cargando = this.solicitudesSvc.cargando;
   protected readonly errorCarga = this.solicitudesSvc.error;
 
@@ -84,7 +99,21 @@ export class PanelComponent implements OnInit, OnDestroy {
    */
   protected readonly contratado = computed(() => this.usuario()?.contratado === true);
 
-  protected readonly filtro = signal<Filtro>('todas');
+  /** El filtro lo guarda el servicio: es lo que viaja en cada consulta. */
+  protected readonly filtro = computed(() => this.solicitudesSvc.filtro().estado);
+  protected readonly pagina = this.solicitudesSvc.pagina;
+  protected readonly hayMas = this.solicitudesSvc.hayMas;
+  protected readonly conteos = this.solicitudesSvc.conteos;
+
+  /** Lo que el usuario escribe, antes de mandarlo. */
+  protected readonly busqueda = signal('');
+  protected readonly filtroDesde = signal('');
+  protected readonly filtroHasta = signal('');
+
+  protected readonly hayFiltroActivo = computed(() => {
+    const f = this.solicitudesSvc.filtro();
+    return f.estado !== 'todas' || !!f.desde || !!f.hasta || !!f.buscar;
+  });
 
   protected readonly opciones: readonly OpcionFiltro[] = [
     { valor: 'todas', label: 'Todas' },
@@ -94,11 +123,10 @@ export class PanelComponent implements OnInit, OnDestroy {
     { valor: 'error', label: 'Con error' },
   ];
 
-  protected readonly visibles = computed(() => {
-    const todas = this.solicitudesSvc.solicitudes();
-    const filtro = this.filtro();
-    return filtro === 'todas' ? todas : todas.filter((s) => s.estado === filtro);
-  });
+  // El servidor ya devuelve la página filtrada: acá no se filtra nada. Antes
+  // se filtraba sobre lo cargado, y eso escondía todo lo que estuviera más
+  // allá de la primera página.
+  protected readonly visibles = this.solicitudesSvc.solicitudes;
 
   protected readonly indicadores = computed<readonly Indicador[]>(() => [
     {
@@ -127,8 +155,35 @@ export class PanelComponent implements OnInit, OnDestroy {
     },
   ]);
 
-  protected cambiarFiltro(valor: Filtro): void {
-    this.filtro.set(valor);
+  protected async cambiarFiltro(valor: Filtro): Promise<void> {
+    await this.solicitudesSvc.filtrar({ estado: valor });
+  }
+
+  protected async aplicarBusqueda(evento?: Event): Promise<void> {
+    // `submit` nativo y no `ngSubmit`: el panel no importa FormsModule, y sin
+    // esto el formulario recargaría la página entera.
+    evento?.preventDefault();
+
+    await this.solicitudesSvc.filtrar({
+      buscar: this.busqueda(),
+      desde: this.filtroDesde(),
+      hasta: this.filtroHasta(),
+    });
+  }
+
+  protected async limpiarFiltros(): Promise<void> {
+    this.busqueda.set('');
+    this.filtroDesde.set('');
+    this.filtroHasta.set('');
+    await this.solicitudesSvc.filtrar(FILTRO_VACIO);
+  }
+
+  protected async cambiarPagina(delta: number): Promise<void> {
+    await this.solicitudesSvc.irAPagina(this.pagina() + delta);
+  }
+
+  protected escribir(signal: { set(v: string): void }, evento: Event): void {
+    signal.set((evento.target as HTMLInputElement).value);
   }
 
   /* ===== Descarga de la planilla ===== */
@@ -213,9 +268,9 @@ export class PanelComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Lo cuenta el servidor sobre todo el rango, no sobre la página cargada. */
   protected contarPorFiltro(valor: Filtro): number {
-    const todas = this.solicitudesSvc.solicitudes();
-    return valor === 'todas' ? todas.length : todas.filter((s) => s.estado === valor).length;
+    return this.conteos()[valor] ?? 0;
   }
 
   protected nombreServicio(solicitud: Solicitud): string {

@@ -24,6 +24,21 @@ const ACME: CuentaAdmin = {
   ],
 };
 
+/**
+ * Una cuenta como la que se crea sola cuando alguien entra por primera vez:
+ * sin saldo, sin usuarios, sin expedientes y sin servicios. Son registros, no
+ * clientes, y son las que entierran la lista.
+ */
+const VACIA: CuentaAdmin = {
+  id: 'c-9',
+  nombre: 'Curioso Cualquiera',
+  rut: null,
+  saldo: 0,
+  usuarios: 0,
+  solicitudes: 0,
+  procesos: [],
+};
+
 const SIN_SERVICIOS: CuentaAdmin = {
   id: 'c-2',
   nombre: 'Cliente nuevo',
@@ -153,6 +168,47 @@ describe('AdminComponent', () => {
 
     expect(doble.cerrarSesiones).toHaveBeenCalledWith('u-1');
     expect(html.querySelector('.admin__aviso')?.textContent).toContain('volver a entrar');
+  });
+
+  describe('ruido en las listas', () => {
+    it('oculta las cuentas sin actividad y ofrece mostrarlas', () => {
+      doble.cuentas.set([ACME, VACIA]);
+      fixture.detectChanges();
+
+      expect(html.querySelectorAll('.cuenta').length).toBe(1);
+
+      const mostrar = html.querySelector<HTMLButtonElement>('.buscar__mas')!;
+      expect(mostrar.textContent).toContain('1');
+
+      mostrar.click();
+      fixture.detectChanges();
+      expect(html.querySelectorAll('.cuenta').length).toBe(2);
+    });
+
+    /** Si escribiste un nombre, quieres esa cuenta aunque esté vacía. */
+    it('la búsqueda encuentra también las cuentas sin actividad', () => {
+      doble.cuentas.set([ACME, VACIA]);
+      fixture.detectChanges();
+
+      const buscar = html.querySelector<HTMLInputElement>('.buscar input')!;
+      buscar.value = 'curioso';
+      buscar.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(html.querySelectorAll('.cuenta').length).toBe(1);
+      expect(html.querySelector('.cuenta__nombre')?.textContent).toContain('Curioso');
+    });
+
+    it('busca usuarios por correo', () => {
+      const buscadores = html.querySelectorAll<HTMLInputElement>('.buscar input');
+      const usuarios = buscadores[buscadores.length - 1];
+      usuarios.value = 'ana@';
+      usuarios.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(html.querySelectorAll('.usuario').length).toBe(1);
+      expect(html.querySelector('.usuario__email')?.textContent).toContain('ana@acme.cl');
+    });
   });
 
   it('carga las cuentas al entrar', () => {

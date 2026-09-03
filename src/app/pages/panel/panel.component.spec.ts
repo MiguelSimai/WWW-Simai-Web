@@ -85,8 +85,20 @@ function solicitudesDoble(datos: readonly Solicitud[] = SOLICITUDES) {
     enProceso: computed(() => lista().filter((s) => s.estado === 'procesando').length),
     porRevisar: computed(() => lista().filter((s) => s.estado === 'revisar').length),
     gastoTotal: computed(() => lista().reduce((t, s) => t + s.costo, 0)),
-    filtrarPorEstado: (e: EstadoSolicitud | 'todas') =>
-      e === 'todas' ? lista() : lista().filter((s) => s.estado === e),
+    // Los conteos y el filtrado los hace el servidor: el doble sólo tiene que
+    // exponerlos, no reproducir la lógica.
+    conteos: computed(() => ({
+      todas: lista().length,
+      procesando: lista().filter((s) => s.estado === 'procesando').length,
+      revisar: lista().filter((s) => s.estado === 'revisar').length,
+      completada: lista().filter((s) => s.estado === 'completada').length,
+      error: lista().filter((s) => s.estado === 'error').length,
+    })),
+    filtro: signal({ estado: 'todas' as const, desde: '', hasta: '', buscar: '' }).asReadonly(),
+    pagina: signal(1).asReadonly(),
+    hayMas: signal(false).asReadonly(),
+    filtrar: jasmine.createSpy('filtrar').and.resolveTo(),
+    irAPagina: jasmine.createSpy('irAPagina').and.resolveTo(),
     cargar: () => Promise.resolve(),
     descargarExcel: jasmine.createSpy('descargarExcel').and.resolveTo(),
     detalle: jasmine
@@ -226,21 +238,48 @@ describe('PanelComponent', () => {
     expect(suelta?.textContent).not.toContain('1 archivos');
   });
 
-  it('filtra por estado al pulsar un filtro', () => {
+  /**
+   * El filtro va al servidor, no se aplica en el navegador. Filtrar acá sólo
+   * alcanzaría lo que está cargado, y todo lo que pase de la primera página
+   * quedaría invisible.
+   */
+  it('pide al servidor filtrar por estado', async () => {
     filtro('Procesando')?.click();
-    fixture.detectChanges();
+    await fixture.whenStable();
 
-    expect(filas().length).toBe(2);
+    expect(doble.filtrar).toHaveBeenCalledWith({ estado: 'procesando' });
   });
 
-  it('vuelve al total al pulsar "Todas"', () => {
-    filtro('Con error')?.click();
-    fixture.detectChanges();
-    expect(filas().length).toBeLessThan(SOLICITUDES.length);
+  it('manda la búsqueda y el rango de fechas juntos', async () => {
+    const buscar = html.querySelector<HTMLInputElement>('.buscador input[type="search"]')!;
+    buscar.value = '297541';
+    buscar.dispatchEvent(new Event('input'));
 
-    filtro('Todas')?.click();
+    const [desde, hasta] = Array.from(
+      html.querySelectorAll<HTMLInputElement>('.buscador input[type="date"]'),
+    );
+    desde.value = '2026-09-01';
+    desde.dispatchEvent(new Event('input'));
+    hasta.value = '2026-09-30';
+    hasta.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    expect(filas().length).toBe(SOLICITUDES.length);
+
+    html.querySelector<HTMLFormElement>('.buscador')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(doble.filtrar).toHaveBeenCalledWith({
+      buscar: '297541',
+      desde: '2026-09-01',
+      hasta: '2026-09-30',
+    });
+  });
+
+  it('los contadores de los chips vienen del servidor, no de la página cargada', () => {
+    // El doble reporta 6 en total aunque la página traiga 6: lo que importa es
+    // que el número salga de `conteos`, no de contar filas.
+    const todas = filtro('Todas');
+
+    expect(todas?.textContent).toContain(String(SOLICITUDES.length));
   });
 
   it('muestra un indicador por métrica de la cuenta', () => {
@@ -340,11 +379,8 @@ describe('PanelComponent', () => {
     });
   });
 
-  it('avisa cuando no hay nada en un estado', async () => {
-    await montar(ANA, [solicitud('SOL-0001', 'completada')]);
-
-    filtro('Con error')?.click();
-    fixture.detectChanges();
+  it('avisa cuando el servidor no devuelve nada', async () => {
+    await montar(ANA, []);
 
     expect(html.querySelector('.vacio')).toBeTruthy();
     expect(filas().length).toBe(0);
