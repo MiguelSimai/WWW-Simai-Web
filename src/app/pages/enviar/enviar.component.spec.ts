@@ -23,6 +23,7 @@ function authDoble(servicios: readonly ServicioId[]): Auth {
     usuario: signal(usuario).asReadonly(),
     autenticado: signal(true).asReadonly(),
     cargarSesion: () => Promise.resolve(),
+    refrescarUsuario: () => Promise.resolve(),
     listo: () => Promise.resolve(),
     irALogin: () => {},
     salir: () => Promise.resolve(),

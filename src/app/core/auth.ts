@@ -26,6 +26,18 @@ export interface Auth {
   cargarSesion(): Promise<void>;
 
   /**
+   * Vuelve a leer el usuario desde el servidor.
+   *
+   * El saldo viaja dentro del usuario y solo se cargaba al arrancar la app,
+   * así que después de enviar un expediente la cifra en pantalla quedaba
+   * vieja hasta que alguien recargara la página. Esto la pone al día.
+   *
+   * No lanza: si la consulta falla se conserva lo que ya había, que es
+   * preferible a dejar la pantalla sin saldo por un error de red.
+   */
+  refrescarUsuario(): Promise<void>;
+
+  /**
    * Se resuelve cuando la consulta del arranque terminó.
    *
    * La esperan los guards de las rutas protegidas, que sí necesitan saber si

@@ -60,6 +60,7 @@ describe('PreciosComponent', () => {
             autenticado: autenticado.asReadonly(),
             proveedores: signal(['google']).asReadonly(),
             cargarSesion: () => Promise.resolve(),
+    refrescarUsuario: () => Promise.resolve(),
     listo: () => Promise.resolve(),
             irALogin,
             salir: () => Promise.resolve(),

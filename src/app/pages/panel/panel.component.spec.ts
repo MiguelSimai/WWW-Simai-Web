@@ -61,6 +61,7 @@ function authDoble(usuario: Usuario | null): Auth {
     usuario: actual.asReadonly(),
     autenticado: signal(usuario !== null).asReadonly(),
     cargarSesion: () => Promise.resolve(),
+    refrescarUsuario: () => Promise.resolve(),
     listo: () => Promise.resolve(),
     irALogin: () => {},
     salir: () => Promise.resolve(),

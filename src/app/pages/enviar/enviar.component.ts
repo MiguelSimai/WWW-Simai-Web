@@ -428,6 +428,11 @@ export class EnviarComponent {
       Array.from({ length: SUBIDAS_EN_PARALELO }, () => trabajador()),
     );
 
+    // El envío ya descontó el saldo en el servidor. Sin esto, la cifra de la
+    // cabecera y la del panel siguen mostrando lo de antes hasta que alguien
+    // recargue la página.
+    await this.auth.refrescarUsuario();
+
     this.enviando.set(false);
   }
 

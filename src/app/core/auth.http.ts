@@ -64,6 +64,10 @@ export class AuthHttp implements Auth {
     }
   }
 
+  async refrescarUsuario(): Promise<void> {
+    await this.consultar();
+  }
+
   private async consultar(): Promise<void> {
     try {
       const usuario = await firstValueFrom(

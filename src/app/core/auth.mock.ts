@@ -28,6 +28,12 @@ export class AuthMock implements Auth {
     return Promise.resolve();
   }
 
+  async refrescarUsuario(): Promise<void> {
+    // Sin backend no hay nada que volver a preguntar: el usuario simulado
+    // vive en el almacenamiento del navegador y ya está en memoria.
+    this._usuario.set(this.leer());
+  }
+
   async cargarSesion(): Promise<void> {
     this._usuario.set(this.leer());
   }

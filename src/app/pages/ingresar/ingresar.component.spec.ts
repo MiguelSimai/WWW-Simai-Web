@@ -15,6 +15,7 @@ function authDoble(
     autenticado: signal(false).asReadonly(),
     proveedores: signal(proveedores).asReadonly(),
     cargarSesion: () => Promise.resolve(),
+    refrescarUsuario: () => Promise.resolve(),
     listo: () => Promise.resolve(),
     irALogin: jasmine.createSpy('irALogin'),
     salir: () => Promise.resolve(),
