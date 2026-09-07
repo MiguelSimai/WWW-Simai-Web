@@ -155,7 +155,7 @@ def recibir_expediente(
     with pool.connection() as conn:
         solicitud = conn.execute(
             """
-            select id, codigo, usuario_id, servicio, costo, estado
+            select id, codigo, usuario_id, cuenta_id, servicio, costo, estado
               from solicitudes
              where referencia_motor = %s
                for update
@@ -284,17 +284,22 @@ def recibir_expediente(
         )
 
         if devolver:
+            # El saldo vive en `cuentas`, que es donde lo descontó la reserva.
+            # `usuarios.saldo` es un resto de cuando el saldo era por persona:
+            # devolver ahí no le repone nada a nadie, y además no falla, así
+            # que el cliente pagaría documentos que nunca se procesaron.
             conn.execute(
-                "update usuarios set saldo = saldo + %s where id = %s",
-                (devolver, solicitud["usuario_id"]),
+                "update cuentas set saldo = saldo + %s where id = %s",
+                (devolver, solicitud["cuenta_id"]),
             )
             conn.execute(
                 """
                 insert into movimientos_saldo
-                       (usuario_id, solicitud_id, tipo, monto, detalle)
-                     values (%s, %s, 'ajuste', %s, %s)
+                       (cuenta_id, usuario_id, solicitud_id, tipo, monto, detalle)
+                     values (%s, %s, %s, 'ajuste', %s, %s)
                 """,
                 (
+                    solicitud["cuenta_id"],
                     solicitud["usuario_id"],
                     solicitud["id"],
                     devolver,
