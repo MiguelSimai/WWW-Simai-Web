@@ -122,6 +122,19 @@ class Config(BaseSettings):
     # esa llamada: solo valida y encola, así que no hace falta más.
     gateway_timeout: int = 30
 
+    # --- Autenticación ante el gateway ---
+
+    # El gateway no valida credenciales: la autenticación la aplica la puerta
+    # que lo publica (Kong), con OAuth2 client_credentials. El portal pide un
+    # token y lo manda en `Authorization: Bearer`.
+    #
+    # Vacío significa "sin autenticación", que es lo correcto al apuntar a un
+    # gateway local: ahí no hay puerta delante. Contra el gateway publicado los
+    # tres valores son obligatorios, o toda solicitud vuelve con 401.
+    gateway_token_url: str = ""
+    gateway_token_client_id: str = ""
+    gateway_token_client_secret: str = ""
+
     @model_validator(mode="after")
     def revisar_motor(self) -> "Config":
         """
@@ -134,6 +147,20 @@ class Config(BaseSettings):
             raise ValueError(
                 "Falta MOTOR_DATABASE_URL. Ponla, o usa MOTOR_SIMULADO=true "
                 "para probar el portal sin el motor de procesamiento."
+            )
+
+        # Media configuración de token es peor que ninguna: el portal pediría
+        # el token, fallaría, y recién ahí se sabría —con el primer expediente
+        # de un cliente. Mejor no arrancar.
+        token_parcial = (
+            bool(self.gateway_token_url)
+            != bool(self.gateway_token_client_id and self.gateway_token_client_secret)
+        )
+        if token_parcial:
+            raise ValueError(
+                "La autenticación del gateway está a medias: GATEWAY_TOKEN_URL, "
+                "GATEWAY_TOKEN_CLIENT_ID y GATEWAY_TOKEN_CLIENT_SECRET van las "
+                "tres juntas, o ninguna."
             )
         return self
 

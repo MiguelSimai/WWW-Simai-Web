@@ -8,6 +8,7 @@ acá y el resto del portal no se entera.
 
 import base64
 import logging
+import time
 import uuid
 
 import httpx
@@ -30,6 +31,74 @@ class ErrorGateway(Exception):
 # Los tres tienen que coincidir con la fila de `iagw_proceso` del motor, que
 # además debe tener `modo_respuesta_default = 'async'`, o el gateway responde
 # 404.
+
+
+# Token vigente, cacheado en el proceso. Pedir uno por documento duplicaría
+# la latencia de cada envío y, en un expediente de cincuenta archivos, serían
+# cincuenta viajes de más contra la puerta de entrada.
+_token: dict = {"valor": None, "expira_en": 0.0}
+
+
+def _obtener_token(forzar: bool = False) -> str | None:
+    """
+    Devuelve un access token para el gateway, reutilizando el vigente.
+
+    `forzar` descarta el cacheado: se usa cuando el gateway responde 401, que
+    es la señal de que el token dejó de servir antes de lo que decía.
+
+    Devuelve None cuando no hay autenticación configurada — el caso del
+    gateway local, sin puerta delante.
+    """
+    if not config.gateway_token_url:
+        return None
+
+    # El margen evita usar un token que expire durante el viaje de ida.
+    if not forzar and _token["valor"] and _token["expira_en"] > time.monotonic() + 60:
+        return _token["valor"]
+
+    try:
+        respuesta = httpx.post(
+            config.gateway_token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": config.gateway_token_client_id,
+                "client_secret": config.gateway_token_client_secret,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=20,
+        )
+    except httpx.RequestError as exc:
+        logger.error("No se pudo pedir el token al gateway: %s", exc)
+        raise ErrorGateway("El servicio de procesamiento no responde.") from exc
+
+    if respuesta.status_code >= 400:
+        # El cuerpo del error es lo único que distingue credenciales inválidas
+        # de una URL equivocada; sin él el diagnóstico es a ciegas.
+        logger.error(
+            "Token rechazado (HTTP %s): %s", respuesta.status_code, respuesta.text[:300]
+        )
+        raise ErrorGateway("El portal no pudo autenticarse ante el motor.")
+
+    valor = respuesta.json().get("access_token")
+    if not valor:
+        logger.error("La respuesta del token no trae access_token: %s", respuesta.text[:300])
+        raise ErrorGateway("El portal no pudo autenticarse ante el motor.")
+
+    _token["valor"] = valor
+    _token["expira_en"] = time.monotonic() + int(respuesta.json().get("expires_in", 3600))
+    logger.info("Token del gateway renovado.")
+    return valor
+
+
+def _cabeceras(token: str | None) -> dict:
+    """Headers con que el portal se identifica ante el gateway."""
+    cabeceras = {
+        "x-empresa-origen": str(config.gateway_empresa_id),
+        "x-canal": config.gateway_canal,
+    }
+    if token:
+        cabeceras["Authorization"] = f"Bearer {token}"
+    return cabeceras
 
 
 def _entrada(contenido: bytes) -> dict:
@@ -98,21 +167,29 @@ def enviar_documento(
         },
     }
 
-    cabeceras = {
-        "x-empresa-origen": str(config.gateway_empresa_id),
-        "x-canal": config.gateway_canal,
-    }
+    url = f"{config.gateway_url}/api/v1/solicitudes"
 
-    try:
-        respuesta = httpx.post(
-            f"{config.gateway_url}/api/v1/solicitudes",
-            json=cuerpo,
-            headers=cabeceras,
-            timeout=config.gateway_timeout,
-        )
-    except httpx.RequestError as exc:
-        logger.error("No se pudo contactar el motor: %s", exc)
-        raise ErrorGateway("El servicio de procesamiento no responde.") from exc
+    def despachar(token: str | None):
+        try:
+            return httpx.post(
+                url,
+                json=cuerpo,
+                headers=_cabeceras(token),
+                timeout=config.gateway_timeout,
+            )
+        except httpx.RequestError as exc:
+            logger.error("No se pudo contactar el motor: %s", exc)
+            raise ErrorGateway("El servicio de procesamiento no responde.") from exc
+
+    respuesta = despachar(_obtener_token())
+
+    # Un 401 con token en mano significa que caducó antes de lo previsto: se
+    # pide uno nuevo y se reintenta una vez. Encolar es idempotente desde el
+    # lado del portal —el gateway aún no había registrado nada— así que el
+    # reintento no duplica trabajo.
+    if respuesta.status_code == 401 and config.gateway_token_url:
+        logger.info("El motor respondió 401 — renovando token y reintentando.")
+        respuesta = despachar(_obtener_token(forzar=True))
 
     if respuesta.status_code >= 400:
         # El gateway explica el rechazo en el cuerpo: formato no permitido,
