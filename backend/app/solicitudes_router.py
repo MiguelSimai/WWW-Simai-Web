@@ -441,6 +441,17 @@ def crear_solicitud(
                 detail=f"{nombre}: {svc.nombre} no procesa archivos {extension}.",
             )
 
+        # Las hojas en blanco se quitan ANTES de medir: si se midiera primero,
+        # el cliente pagaría por reversos vacíos que el motor nunca analiza.
+        contenido, paginas_omitidas = medicion.podar_paginas_vacias(nombre, contenido)
+        if paginas_omitidas:
+            logger.info(
+                "%s: se omitieron %d páginas en blanco (%s)",
+                nombre,
+                len(paginas_omitidas),
+                ", ".join(str(n) for n in paginas_omitidas),
+            )
+
         try:
             unidades = medicion.medir(svc, nombre, contenido)
         except medicion.ArchivoNoMedible as exc:
@@ -453,6 +464,7 @@ def crear_solicitud(
                 "contenido": contenido,
                 "unidades": unidades,
                 "costo": medicion.costo(svc, unidades),
+                "paginas_omitidas": paginas_omitidas,
             }
         )
 
@@ -512,10 +524,17 @@ def crear_solicitud(
         conn.execute(
             """
             insert into documentos
-                   (solicitud_id, codigo, archivo, unidades, costo)
-                 values (%s, %s, %s, %s, %s)
+                   (solicitud_id, codigo, archivo, unidades, costo, paginas_omitidas)
+                 values (%s, %s, %s, %s, %s, %s)
             """,
-            (solicitud_id, doc["codigo"], doc["archivo"], doc["unidades"], doc["costo"]),
+            (
+                solicitud_id,
+                doc["codigo"],
+                doc["archivo"],
+                doc["unidades"],
+                doc["costo"],
+                doc["paginas_omitidas"],
+            ),
         )
 
     conn.execute(
