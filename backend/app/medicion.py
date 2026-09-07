@@ -80,6 +80,19 @@ def _paginas(extension: str, contenido: bytes) -> int:
     return paginas
 
 
+# Una página se considera en blanco bajo este porcentaje de píxeles oscuros.
+# Medido sobre contratos escaneados reales: las hojas vacías dan entre 0,01 % y
+# 0,26 % —polvo del escáner y sombras del borde—, y la página con menos texto
+# da 5,6 %. El umbral queda cuatro veces sobre el peor blanco y cinco veces bajo
+# el contenido más liviano.
+_TINTA_MAXIMA_BLANCO = 1.0
+
+# Solo se decodifican las páginas cuya imagen pesa menos que esto. Una hoja
+# vacía comprime a menos de 1 KB; la más liviana con texto pesa 19 KB. Evita
+# decodificar páginas grandes para nada.
+_BYTES_CANDIDATA_BLANCO = 6 * 1024
+
+
 def podar_paginas_vacias(nombre: str, contenido: bytes) -> tuple[bytes, list[int]]:
     """
     Devuelve el PDF sin sus páginas en blanco, y cuáles se quitaron.
@@ -89,20 +102,19 @@ def podar_paginas_vacias(nombre: str, contenido: bytes) -> tuple[bytes, list[int
     el portal cobra por página contada, así que esas hojas se pagan dos veces
     sin aportar nada: en un contrato de 13 páginas, 6 son reversos.
 
-    Una página se descarta solo si NO tiene texto y NO tiene imágenes. La
-    segunda condición es la que protege: una página sin texto pero con imagen
-    puede ser una firma escaneada o un anexo, y esa se queda.
+    Hay dos clases de PDF y cada una necesita su criterio:
 
-    Antes de mirar página por página se comprueba que el documento tenga capa
-    de texto en alguna parte. Un PDF escaneado no la tiene en ninguna, y ahí el
-    criterio del texto borraría el documento entero.
+      - Nativo, con capa de texto: la página está vacía si no tiene texto NI
+        imágenes. La segunda condición protege una firma escaneada o un anexo.
+      - Escaneado, sin capa de texto en ninguna página: no hay texto que mirar,
+        así que se mide cuánta tinta tiene la imagen de la página.
 
-    Ante cualquier duda no se poda: se devuelve el archivo intacto. Cobrar de
-    más una hoja es un problema menor que perder una página con contenido.
+    Ante cualquier duda no se poda. Cobrar de más una hoja es un problema menor
+    que perder una página con contenido.
 
     Retorna:
-        (contenido, paginas_quitadas) — los números son 1-based y referidos al
-        documento ORIGINAL, que es como los cuenta quien lo abra.
+        (contenido, paginas_quitadas) — números 1-based referidos al documento
+        ORIGINAL, que es como los cuenta quien lo abra.
     """
     extension = "." + nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""
     if extension != ".pdf":
@@ -124,15 +136,15 @@ def podar_paginas_vacias(nombre: str, contenido: bytes) -> tuple[bytes, list[int
     except Exception:
         return contenido, []
 
-    # PDF escaneado: ninguna página declara texto. El criterio no aplica.
-    if not any(tiene_texto):
-        return contenido, []
+    escaneado = not any(tiene_texto)
 
     vacias: list[int] = []
     for indice, pagina in enumerate(paginas):
-        if tiene_texto[indice] or _tiene_imagenes(pagina):
-            continue
-        vacias.append(indice)
+        if escaneado:
+            if _pagina_escaneada_en_blanco(pagina):
+                vacias.append(indice)
+        elif not tiene_texto[indice] and not _tiene_imagenes(pagina):
+            vacias.append(indice)
 
     if not vacias or len(vacias) == len(paginas):
         return contenido, []
@@ -173,6 +185,59 @@ def _tiene_imagenes(pagina) -> bool:
         )
     except Exception:
         return True
+
+
+def _pagina_escaneada_en_blanco(pagina) -> bool:
+    """
+    True si la imagen de la página es papel en blanco.
+
+    Primero se mira el tamaño comprimido, que no obliga a decodificar nada: una
+    hoja vacía ocupa una fracción de lo que ocupa una con texto. Solo las
+    candidatas se decodifican para contar sus píxeles oscuros.
+
+    Cualquier error responde False y la página se conserva.
+    """
+    try:
+        if _bytes_de_imagenes(pagina) > _BYTES_CANDIDATA_BLANCO:
+            return False
+
+        from PIL import Image
+
+        for imagen in pagina.images:
+            grises = Image.open(io.BytesIO(imagen.data)).convert("L")
+            # Reducir antes de contar: la proporción de tinta se conserva y el
+            # conteo baja de millones de píxeles a decenas de miles.
+            grises.thumbnail((400, 400))
+            histograma = grises.histogram()
+            oscuros = sum(histograma[:200])
+            total = grises.size[0] * grises.size[1]
+            if not total:
+                return False
+            return (100.0 * oscuros / total) < _TINTA_MAXIMA_BLANCO
+    except Exception:
+        return False
+
+    return False
+
+
+def _bytes_de_imagenes(pagina) -> int:
+    """Tamaño comprimido de las imágenes de la página, sin decodificarlas."""
+    total = 0
+    try:
+        recursos = pagina.get("/Resources")
+        if recursos is None:
+            return 0
+        xobjects = recursos.get_object().get("/XObject")
+        if xobjects is None:
+            return 0
+        for obj in xobjects.get_object().values():
+            o = obj.get_object()
+            if o.get("/Subtype") == "/Image":
+                total += len(o.get_data())
+    except Exception:
+        # Sin medida confiable, se declara grande: no es candidata a blanco.
+        return _BYTES_CANDIDATA_BLANCO + 1
+    return total
 
 
 def costo(servicio: Servicio, unidades: int) -> int:

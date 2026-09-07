@@ -564,7 +564,7 @@ def crear_solicitud(
         )
     except Exception as exc:
         logger.error("No se pudo registrar el expediente %s: %s", codigo, exc)
-        _anular(solicitud_id, cuenta_id, costo_total, codigo)
+        _anular(solicitud_id, cuenta_id, usuario["id"], costo_total, codigo)
         raise HTTPException(
             status_code=503,
             detail="El servicio de procesamiento no está disponible. No se te cobró.",
@@ -600,7 +600,7 @@ def crear_solicitud(
     # Si el motor rechazó todo, no hay nada que esperar: se cierra en error y
     # se devuelve la reserva completa.
     if len(fallados) == len(documentos):
-        _anular(solicitud_id, cuenta_id, costo_total, codigo, estado="error")
+        _anular(solicitud_id, cuenta_id, usuario["id"], costo_total, codigo, estado="error")
         raise HTTPException(
             status_code=422,
             detail="Ningún documento del expediente pudo procesarse. No se te cobró.",
@@ -640,11 +640,19 @@ def _marcar_error(conn, codigo_documento: str, detalle: str) -> None:
 def _anular(
     solicitud_id: str,
     cuenta_id: str,
+    usuario_id: str,
     monto: int,
     codigo: str,
     estado: str = "error",
 ) -> None:
-    """Devuelve la reserva completa y cierra el expediente sin cobro."""
+    """
+    Devuelve la reserva completa y cierra el expediente sin cobro.
+
+    `usuario_id` no es opcional: movimientos_saldo lo exige, igual que en la
+    reserva. Sin él la devolución revienta justo cuando más importa —el motor
+    ya falló—, y el cliente se queda con el cargo y con un error 500 en vez del
+    "no se te cobró" que promete el mensaje.
+    """
     with pool.connection() as conn:
         conn.execute(
             "update cuentas set saldo = saldo + %s where id = %s",
@@ -652,10 +660,12 @@ def _anular(
         )
         conn.execute(
             """
-            insert into movimientos_saldo (cuenta_id, solicitud_id, tipo, monto, detalle)
-                 values (%s, %s, 'devolucion', %s, %s)
+            insert into movimientos_saldo
+                   (cuenta_id, usuario_id, solicitud_id, tipo, monto, detalle)
+                 values (%s, %s, %s, 'devolucion', %s, %s)
             """,
-            (cuenta_id, solicitud_id, monto, f"Expediente {codigo} no procesado"),
+            (cuenta_id, usuario_id, solicitud_id, monto,
+             f"Expediente {codigo} no procesado"),
         )
         conn.execute(
             """

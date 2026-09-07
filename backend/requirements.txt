@@ -16,5 +16,6 @@ python-multipart==0.0.20
 # no es confiable: el cliente puede mentir sobre la duración de su audio.
 mutagen==1.47.0                 # duración de audio, para cobrar por minuto
 pypdf==5.1.0                    # cantidad de páginas, para cobrar por página
+Pillow==12.3.0                  # detectar hojas en blanco en escaneos (ver medicion.py)
 
 openpyxl==3.1.5                 # planilla de resultados que descarga el cliente
