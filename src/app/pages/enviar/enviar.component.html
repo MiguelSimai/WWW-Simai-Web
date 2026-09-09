@@ -164,6 +164,11 @@
                 <span class="item__relleno" [style.width.%]="expediente.progreso"></span>
               </div>
               <span class="item__pct">{{ expediente.progreso }}%</span>
+            } @else if (expediente.estado === 'procesando') {
+              <span class="item__trabajando" role="status">
+                <span class="item__girador" aria-hidden="true"></span>
+                Procesando en el servidor
+              </span>
             } @else if (expediente.estado === 'listo') {
               <span class="badge badge--ok">Enviado</span>
             } @else if (expediente.estado === 'error') {
@@ -172,7 +177,7 @@
               <span class="badge badge--neutro">Listo para enviar</span>
             }
 
-            @if (!enviando() && expediente.estado !== 'listo') {
+            @if (!enviando() && expediente.estado === 'pendiente') {
               <button type="button" class="item__quitar" (click)="quitar(expediente.id)">
                 <span class="sr-only">Quitar {{ nombreDe(expediente) }}</span>
                 <span aria-hidden="true">×</span>

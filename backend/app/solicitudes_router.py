@@ -8,6 +8,7 @@ petición y se despacha documento por documento al motor.
 
 import logging
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
@@ -25,6 +26,18 @@ router = APIRouter(prefix="/api/solicitudes", tags=["solicitudes"])
 # freno: una carga de mil archivos hay que partirla, y así el error aparece al
 # subir en vez de a mitad del despacho.
 _MAX_DOCUMENTOS = 100
+
+# Documentos que se despachan a la vez al motor.
+#
+# Cada envío es un POST independiente que tarda entre uno y dos segundos, casi
+# todo esperando la red. En fila, un expediente de cuatro documentos deja al
+# cliente mirando una barra completa unos ocho segundos; con cien expedientes
+# eso se vuelve intolerable.
+#
+# Se mantiene bajo a propósito: del otro lado hay un solo gateway, y el
+# navegador ya manda tres expedientes en paralelo, así que el motor puede estar
+# recibiendo doce envíos simultáneos.
+_ENVIOS_EN_PARALELO = 4
 
 
 def _codigo(prefijo: str) -> str:
@@ -576,17 +589,38 @@ def crear_solicitud(
     # del motor cuesta ~1,7 s, y hacerlo por documento se lo suma al cliente.
     detalle_motor: list[dict] = []
 
-    for doc in documentos:
+    def despachar(doc: dict) -> tuple[dict, str | None, Exception | None]:
+        """
+        Manda un documento al motor. Solo la llamada HTTP, nada de base de datos.
+
+        Corre en un hilo del pool, y `conn` no es apta para uso concurrente:
+        por eso acá no se toca. Lo que devuelve se persiste después, en el hilo
+        principal y en orden.
+        """
         try:
-            correlation_id = gateway_client.enviar_documento(
+            return doc, gateway_client.enviar_documento(
                 proceso=proceso,
                 referencia_externa=referencia,
                 codigo_documento=doc["codigo"],
                 nombre_archivo=doc["archivo"],
                 contenido=doc["contenido"],
                 usuario=usuario["email"],
-            )
+            ), None
         except gateway_client.ErrorGateway as exc:
+            return doc, None, exc
+
+    # El pool se abre y se cierra dentro de la petición: al salir del `with`
+    # todos los hilos terminaron. Eso es lo que lo hace compatible con
+    # Passenger, que no tolera hilos que sobrevivan a la petición.
+    with ThreadPoolExecutor(
+        max_workers=min(_ENVIOS_EN_PARALELO, len(documentos))
+    ) as envios:
+        # `map` conserva el orden de entrada, así que los documentos se
+        # persisten en el mismo orden en que llegaron.
+        resultados = list(envios.map(despachar, documentos))
+
+    for doc, correlation_id, exc in resultados:
+        if exc is not None:
             # Un documento rechazado no bota el expediente: queda marcado con
             # su motivo y el resto sigue. Su costo se devuelve al cerrar.
             logger.warning("Documento %s rechazado: %s", doc["archivo"], exc)

@@ -18,7 +18,15 @@ import { IconComponent } from '../../ui/icon/icon.component';
  */
 const SUBIDAS_EN_PARALELO = 3;
 
-type EstadoExpediente = 'pendiente' | 'subiendo' | 'listo' | 'error';
+// 'procesando' es el tramo que antes no se veía: la subida terminó y el
+// servidor está midiendo, cobrando y despachando al motor. Son unos diez
+// segundos con la barra en 100% en los que parecía que no pasaba nada.
+type EstadoExpediente =
+  | 'pendiente'
+  | 'subiendo'
+  | 'procesando'
+  | 'listo'
+  | 'error';
 
 /** Un archivo dentro de un expediente. */
 interface DocumentoEnCola {
@@ -449,8 +457,12 @@ export class EnviarComponent {
       this.api.enviar(archivos, servicio.id, expediente.numero).subscribe({
         next: (evento) => {
           if (evento.type === HttpEventType.UploadProgress && evento.total) {
+            const progreso = Math.round((evento.loaded / evento.total) * 100);
+            // Al llegar a 100 el navegador ya entregó todo y queda esperando
+            // la respuesta. El trabajo del servidor empieza justo acá.
             this.parchar(expediente.id, {
-              progreso: Math.round((evento.loaded / evento.total) * 100),
+              progreso,
+              estado: progreso >= 100 ? 'procesando' : 'subiendo',
             });
           }
           if (evento.type === HttpEventType.Response) {

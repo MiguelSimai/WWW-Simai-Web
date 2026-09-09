@@ -402,3 +402,34 @@
     justify-content: center;
   }
 }
+
+/* Mientras el servidor trabaja. Va donde estaba la barra, para que la fila no
+   salte al cambiar de estado. */
+.item__trabajando {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-texto-suave, #6a7484);
+  white-space: nowrap;
+}
+
+.item__girador {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  flex: none;
+  animation: item-girar 0.7s linear infinite;
+}
+
+@keyframes item-girar {
+  to { transform: rotate(360deg); }
+}
+
+/* Sin animación, el indicador igual tiene que leerse como activo: se queda
+   quieto pero visible, en vez de desaparecer. */
+@media (prefers-reduced-motion: reduce) {
+  .item__girador { animation: none; opacity: 0.6; }
+}

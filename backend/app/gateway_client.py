@@ -8,6 +8,7 @@ acá y el resto del portal no se entera.
 
 import base64
 import logging
+import threading
 import time
 import uuid
 
@@ -38,6 +39,11 @@ class ErrorGateway(Exception):
 # cincuenta viajes de más contra la puerta de entrada.
 _token: dict = {"valor": None, "expira_en": 0.0}
 
+# Los documentos se despachan en paralelo, así que varios hilos pueden llegar
+# acá a la vez. Sin el candado, todos verían la caché vacía y cada uno pediría
+# su propio token: cuatro viajes a Kong en vez de uno.
+_candado_token = threading.Lock()
+
 
 def _obtener_token(forzar: bool = False) -> str | None:
     """
@@ -52,10 +58,16 @@ def _obtener_token(forzar: bool = False) -> str | None:
     if not config.gateway_token_url:
         return None
 
-    # El margen evita usar un token que expire durante el viaje de ida.
-    if not forzar and _token["valor"] and _token["expira_en"] > time.monotonic() + 60:
-        return _token["valor"]
+    with _candado_token:
+        # Se relee dentro del candado: mientras este hilo esperaba, otro pudo
+        # haber renovado el token y ya no hace falta pedir otro.
+        if not forzar and _token["valor"] and _token["expira_en"] > time.monotonic() + 60:
+            return _token["valor"]
+        return _pedir_token()
 
+
+def _pedir_token() -> str:
+    """Pide un token a Kong y lo cachea. Se llama con el candado tomado."""
     try:
         respuesta = httpx.post(
             config.gateway_token_url,
