@@ -589,9 +589,30 @@ def crear_solicitud(
             logger.warning("Documento %s rechazado: %s", doc["archivo"], exc)
             fallados.append(doc["codigo"])
             _marcar_error(conn, doc["codigo"], str(exc))
+            # También se registra el rechazo: si N8N solo viera los que
+            # salieron bien, esperaría para siempre a los que faltan.
+            motor_db.registrar_documento(
+                numero_cliente=referencia,
+                correlation_id=None,
+                codigo_documento=doc["codigo"],
+                nro_paginas=doc["unidades"],
+                estado="error",
+                mensaje_error=str(exc),
+            )
             continue
 
         _guardar_correlation(conn, doc["codigo"], correlation_id)
+
+        # El motor recibe el código del documento y lo devuelve en el callback,
+        # pero no lo guarda. Esta fila es lo que le permite a N8N saber a qué
+        # documento del expediente corresponde cada correlation_id.
+        motor_db.registrar_documento(
+            numero_cliente=referencia,
+            correlation_id=correlation_id,
+            codigo_documento=doc["codigo"],
+            nro_paginas=doc["unidades"],
+            estado="EN_PROCESO",
+        )
 
     # Un solo commit para todos los documentos. Antes cada uno abría su propia
     # conexión: con cuatro documentos eran cuatro aperturas de 1,6 s.
