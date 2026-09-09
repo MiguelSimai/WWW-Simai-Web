@@ -102,89 +102,91 @@ def registrar_expediente(
     )
 
 
-def registrar_documento(
-    numero_cliente: str,
-    correlation_id: str | None,
-    codigo_documento: str,
-    nro_paginas: int,
-    estado: str,
-    mensaje_error: str | None = None,
-) -> None:
+def registrar_documentos(numero_cliente: str, documentos: list[dict]) -> None:
     """
-    Registra un documento del expediente en el detalle que consume N8N.
+    Registra de una vez el detalle de todos los documentos del expediente.
 
-    `codigo_documento` viaja en `id_docuware`. El nombre del campo viene del
-    pipeline original, que ingestaba desde DocuWare; acá cumple el mismo papel
-    —identificar el documento dentro del expediente— con el código del portal.
+    Va en lote y no uno por uno a propósito: abrir una conexión a la base del
+    motor cuesta ~1,7 s, así que cuatro documentos serían casi siete segundos
+    de espera para el cliente, que ya subió sus archivos y mira una barra
+    completa sin que pase nada. Es el mismo motivo por el que el router hace un
+    solo commit para todos los documentos en la base del portal.
 
-    Se reescribe si ya existe: un reintento del mismo documento actualiza su
-    fila en vez de agregar otra, que dejaría a N8N contando de más.
+    Cada elemento de `documentos` lleva:
+        codigo          código del documento en el portal (va en id_docuware)
+        correlation_id  el que devolvió el motor, o None si lo rechazó
+        nro_paginas     páginas cobradas, ya descontadas las hojas en blanco
+        estado          'EN_PROCESO' o 'error'
+        mensaje_error   motivo del rechazo, si lo hubo
+
+    Se reescribe lo que ya exista: un reintento del mismo documento actualiza
+    su fila en vez de agregar otra, que dejaría a N8N contando de más.
 
     A diferencia de `registrar_expediente`, un fallo acá NO interrumpe nada.
-    Cuando esto corre el documento ya se despachó al motor y ya se cobró; morir
+    Cuando esto corre los documentos ya se despacharon y ya se cobraron; morir
     en este punto dejaría al motor procesando algo que el portal da por
     fallido. Se registra el problema y se sigue.
     """
+    if not documentos:
+        return
+
     if config.motor_simulado:
         logger.info(
-            "[motor simulado] Documento %s de %s (%s páginas) — no se escribe nada",
-            codigo_documento,
+            "[motor simulado] %s documento(s) de %s — no se escribe nada",
+            len(documentos),
             numero_cliente,
-            nro_paginas,
         )
         return
 
     try:
         with pool.connection() as conn:
-            actualizadas = conn.execute(
-                """
-                update iagw_n8n_proceso_detalle
-                   set correlation_id = %s,
-                       nro_paginas    = %s,
-                       estado         = %s,
-                       mensaje_error  = %s
-                 where id_externo  = %s
-                   and id_docuware = %s
-                """,
-                (
-                    correlation_id,
-                    nro_paginas,
-                    estado,
-                    mensaje_error[:500] if mensaje_error else None,
-                    numero_cliente,
-                    codigo_documento,
-                ),
-            ).rowcount
-
-            if not actualizadas:
-                conn.execute(
-                    """
-                    insert into iagw_n8n_proceso_detalle
-                           (fecha_ingreso, id_externo, id_docuware,
-                            nro_paginas, estado, correlation_id, mensaje_error)
-                         values (now(), %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        numero_cliente,
-                        codigo_documento,
-                        nro_paginas,
-                        estado,
-                        correlation_id,
-                        mensaje_error[:500] if mensaje_error else None,
-                    ),
+            for doc in documentos:
+                error = doc.get("mensaje_error")
+                datos = (
+                    doc["correlation_id"],
+                    doc["nro_paginas"],
+                    doc["estado"],
+                    error[:500] if error else None,
                 )
+
+                actualizadas = conn.execute(
+                    """
+                    update iagw_n8n_proceso_detalle
+                       set correlation_id = %s,
+                           nro_paginas    = %s,
+                           estado         = %s,
+                           mensaje_error  = %s
+                     where id_externo  = %s
+                       and id_docuware = %s
+                    """,
+                    (*datos, numero_cliente, doc["codigo"]),
+                ).rowcount
+
+                if not actualizadas:
+                    conn.execute(
+                        """
+                        insert into iagw_n8n_proceso_detalle
+                               (fecha_ingreso, id_externo, id_docuware,
+                                nro_paginas, estado, correlation_id, mensaje_error)
+                             values (now(), %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            numero_cliente,
+                            doc["codigo"],
+                            doc["nro_paginas"],
+                            doc["estado"],
+                            doc["correlation_id"],
+                            error[:500] if error else None,
+                        ),
+                    )
     except Exception as exc:
         logger.error(
-            "No se pudo registrar el detalle del documento %s de %s: %s",
-            codigo_documento,
-            numero_cliente,
-            exc,
+            "No se pudo registrar el detalle de %s: %s", numero_cliente, exc
         )
         return
 
     logger.info(
-        "Documento registrado en el motor: %s de %s — %s",
-        codigo_documento,
+        "Detalle registrado en el motor: %s documento(s) de %s",
+        len(documentos),
         numero_cliente,
-        estado,
     )
