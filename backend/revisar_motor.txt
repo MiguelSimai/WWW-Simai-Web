@@ -1,0 +1,54 @@
+======================================================================
+CREDENCIALES DEL MOTOR — QUÉ VE LA APLICACIÓN
+======================================================================
+
+1. Variables de entorno del proceso
+
+  MOTOR_SIMULADO           = (no definida)
+  GATEWAY_URL              = (no definida)
+  GATEWAY_CANAL            = (no definida)
+  GATEWAY_EMPRESA_ID       = (no definida)
+  PUBLIC_URL               = (no definida)
+  GATEWAY_TOKEN_URL        = (no definida)
+  CALLBACK_TOKEN           = huella (vacío)
+  GATEWAY_TOKEN_CLIENT_ID  = huella (vacío)
+  GATEWAY_TOKEN_CLIENT_SECRET = huella (vacío)
+
+  MOTOR_DATABASE_URL (entorno): (no definida)
+
+2. Archivo .env en el servidor
+
+  Existe, con 28 variables.
+  MOTOR_DATABASE_URL (.env):
+     usuario   : simai_admin
+     servidor  : simai-db.postgres.database.azure.com:5432
+     base      : appdb
+     clave     : huella 38df822b69  (16 caracteres)
+     sslmode   : sí
+
+  ATENCIÓN: pydantic lee primero el entorno, así que el panel gana
+  sobre este archivo. Pero si una variable NO está en el panel, la
+  toma de acá — y un valor viejo pasa desapercibido.
+
+3. Lo que resuelve la configuración de la aplicación
+
+  MOTOR_DATABASE_URL (efectiva):
+     usuario   : simai_admin
+     servidor  : simai-db.postgres.database.azure.com:5432
+     base      : appdb
+     clave     : huella 38df822b69  (16 caracteres)
+     sslmode   : sí
+
+  DATABASE_URL del portal:
+     usuario   : usrapp_simai
+     servidor  : simai-db.postgres.database.azure.com:5432
+     base      : simai_portal
+     clave     : huella 675fe875f1  (16 caracteres)
+     sslmode   : sí
+
+4. Conexión real a cada base
+
+  portal: CONECTA — usuario 'usrapp_simai', base 'simai_portal'
+  motor : CONECTA — usuario 'simai_admin', base 'appdb'
+
+======================================================================
