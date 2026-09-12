@@ -114,6 +114,26 @@ export const ETIQUETA_ESTADO: Readonly<Record<EstadoSolicitud, string>> = {
   error: 'Con error',
 };
 
+/**
+ * Qué significa cada estado, en palabras del cliente.
+ *
+ * "Requiere revisión" es el que más se pregunta: no quiere decir que algo
+ * salió mal, sino que el análisis quedó con poca confianza y conviene mirarlo.
+ * Y como se cobra igual —el trabajo se hizo—, decirlo acá evita la sorpresa.
+ */
+export const DESCRIPCION_ESTADO: Readonly<Record<EstadoSolicitud, string>> = {
+  completada:
+    'El análisis terminó y el resultado es confiable. No necesita que hagas nada.',
+  procesando:
+    'Los documentos están en el motor de análisis. Te avisamos al terminar.',
+  revisar:
+    'Hay resultados, pero el análisis de algún documento quedó con poca ' +
+    'certeza: conviene que lo revises antes de darlo por bueno. Se cobra ' +
+    'igual, porque el documento sí se procesó.',
+  error:
+    'No se pudo procesar. Lo que falló no se te cobró.',
+};
+
 /** Modificador BEM de `.badge` que corresponde a cada estado. */
 export const BADGE_ESTADO: Readonly<Record<EstadoSolicitud, string>> = {
   completada: 'badge--ok',

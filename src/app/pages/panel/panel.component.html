@@ -196,6 +196,27 @@
       }
     </div>
 
+    <div class="leyenda">
+      <button
+        type="button"
+        class="leyenda__boton"
+        [attr.aria-expanded]="leyendaAbierta()"
+        (click)="leyendaAbierta.set(!leyendaAbierta())">
+        {{ leyendaAbierta() ? 'Ocultar' : '¿Qué significa cada estado?' }}
+      </button>
+
+      @if (leyendaAbierta()) {
+        <dl class="leyenda__lista">
+          @for (e of estadosExplicados; track e.estado) {
+            <div class="leyenda__item">
+              <dt><span [class]="'badge ' + e.badge">{{ e.etiqueta }}</span></dt>
+              <dd>{{ e.descripcion }}</dd>
+            </div>
+          }
+        </dl>
+      }
+    </div>
+
     @if (visibles().length) {
       <ul class="solicitudes solicitudes--densa" aria-live="polite">
         @for (solicitud of visibles(); track solicitud.codigo) {
@@ -231,7 +252,8 @@
             </div>
 
             <div class="solicitud__estado">
-              <span [class]="'badge ' + badge(solicitud.estado)">
+              <span [class]="'badge ' + badge(solicitud.estado)"
+                    [title]="descripcion(solicitud.estado)">
                 {{ etiqueta(solicitud.estado) }}
               </span>
               <span class="solicitud__resultado">{{ solicitud.resultado }}</span>
@@ -255,7 +277,8 @@
                           {{ doc.unidades }} {{ unidadServicio(solicitud) }}s ·
                           {{ doc.costo | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
                         </span>
-                        <span [class]="'badge ' + badge(doc.estado)">
+                        <span [class]="'badge ' + badge(doc.estado)"
+                              [title]="descripcion(doc.estado)">
                           {{ etiqueta(doc.estado) }}
                         </span>
                         @if (doc.resultado) {

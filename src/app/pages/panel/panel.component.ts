@@ -5,6 +5,7 @@ import { AUTH } from '../../core/auth';
 import { servicioPorId } from '../../core/catalogo';
 import {
   BADGE_ESTADO,
+  DESCRIPCION_ESTADO,
   Documento,
   ETIQUETA_ESTADO,
   EstadoSolicitud,
@@ -283,6 +284,22 @@ export class PanelComponent implements OnInit, OnDestroy {
 
   protected unidadServicio(solicitud: Solicitud): string {
     return servicioPorId(solicitud.servicio).unidad;
+  }
+
+  /** Se abre a pedido: quien ya conoce los estados no necesita la explicación. */
+  protected readonly leyendaAbierta = signal(false);
+
+  protected readonly estadosExplicados = (
+    ['completada', 'revisar', 'procesando', 'error'] as EstadoSolicitud[]
+  ).map((estado) => ({
+    estado,
+    etiqueta: ETIQUETA_ESTADO[estado],
+    badge: BADGE_ESTADO[estado],
+    descripcion: DESCRIPCION_ESTADO[estado],
+  }));
+
+  protected descripcion(estado: EstadoSolicitud): string {
+    return DESCRIPCION_ESTADO[estado];
   }
 
   protected etiqueta(estado: EstadoSolicitud): string {

@@ -8,15 +8,30 @@ y otro cliente esperará otra cosa.
 
 Si un servicio no tiene plantilla, se cae a un juego de columnas genérico: es
 mejor entregar algo correcto que un error.
+
+Cada columna puede declarar `formato` para normalizar lo que muestra. Hace
+falta porque el modelo transcribe lo que ve, y lo que ve varía: el mismo RUT
+llega como "14156964-3" en un documento y "14.156.964-3" en otro. Quien lee la
+planilla espera una sola forma.
+
+Y puede declarar `fuentes`: una lista de orígenes en orden de precedencia, de
+la que se toma el primero con valor. El número de operación está en la carta,
+en el contrato y en el pagaré; si la carta falla, la columna quedaría vacía
+teniendo el dato a mano. Que los documentos discrepen no se resuelve acá: de
+eso avisan las reglas de cruce, que dejan el expediente como rechazado y
+detallan la diferencia en las observaciones.
 """
 
 import io
 import logging
+import re
 import unicodedata
 from datetime import date, datetime
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -65,6 +80,23 @@ def _coincide(nombre_archivo: str, patron: str) -> bool:
 
 
 def _valor(columna: dict, solicitud: dict, documentos: list[dict]) -> Any:
+    """
+    El valor de una columna para un expediente.
+
+    Con `fuentes`, se prueban en orden y gana la primera que traiga algo. La
+    precedencia la fija la plantilla y es deliberada: para el número de
+    operación manda la carta, que es el documento de cabecera.
+    """
+    fuentes = columna.get("fuentes")
+    if fuentes:
+        for fuente in fuentes:
+            # Cada fuente hereda lo que la columna ya declaró —el formato, por
+            # ejemplo— y solo cambia de dónde sale el dato.
+            valor = _valor({**columna, **fuente, "fuentes": None}, solicitud, documentos)
+            if valor is not None and valor != "":
+                return valor
+        return None
+
     origen = columna.get("origen", "solicitud")
     campo = columna.get("campo", "")
 
@@ -77,6 +109,19 @@ def _valor(columna: dict, solicitud: dict, documentos: list[dict]) -> Any:
     if origen == "consolidado":
         datos = solicitud.get("respuesta_ia")
         return _del_json(datos, campo)
+
+    if origen == "regla":
+        # Una columna por regla, en el orden en que se evaluaron. Devuelve el
+        # objeto entero —no un campo— porque el formateador necesita el nombre,
+        # el resultado, lo que comparó y el detalle para armar la celda.
+        consolidado = solicitud.get("respuesta_ia")
+        if not isinstance(consolidado, dict):
+            return None
+        reglas = consolidado.get("validaciones")
+        indice = columna.get("indice", 0)
+        if not isinstance(reglas, list) or indice >= len(reglas):
+            return None
+        return reglas[indice]
 
     if origen == "documento":
         patron = columna.get("patron") or ""
@@ -101,8 +146,9 @@ def _del_json(datos: Any, campo: str) -> Any:
     """
     Saca `campo` del JSON del motor. Acepta rutas con punto ("deudor.rut").
 
-    Una lista se une con "; " para que quepa en una celda: es el caso de
-    `observaciones`, que suele venir como arreglo de hallazgos.
+    Las listas se devuelven intactas. Aplanarlas es cosa de la celda o del
+    formateador: `motivos_rechazo` se numera, y un texto con punto y coma
+    adentro no debe partirse en dos observaciones.
     """
     if not isinstance(datos, dict) or not campo:
         return None
@@ -115,15 +161,143 @@ def _del_json(datos: Any, campo: str) -> Any:
         if actual is None:
             return None
 
-    if isinstance(actual, list):
-        return "; ".join(str(x) for x in actual)
     if isinstance(actual, (dict,)):
         return None
     return actual
 
 
+def _formato_rut(valor: Any) -> Any:
+    """
+    Un RUT sin puntos y con guion: 14156964-3.
+
+    Si no parece un RUT se devuelve intacto. Vale más una celda con el texto
+    original que una vacía porque el formateador no lo reconoció.
+    """
+    texto = str(valor).replace(".", "").replace(" ", "").upper()
+    m = re.match(r"^(\d{1,8})-?([\dK])$", texto)
+    return f"{m.group(1)}-{m.group(2)}" if m else valor
+
+
+def _formato_fecha(valor: Any) -> Any:
+    """
+    Una fecha real, para que Excel la ordene y filtre como tal.
+
+    El modelo las entrega en ISO porque así se le pidió; acá se convierten a
+    `date` y la presentación dd-mm-aaaa la aplica `generar()` con el formato de
+    celda. Guardar el texto ya formateado sería más simple y peor: quedarían
+    como cadenas y "01-02" ordenaría antes que "31-01".
+    """
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor).strip()[:10]).date()
+    except (ValueError, TypeError):
+        return valor
+
+
+def _negrita(texto: str) -> TextBlock:
+    return TextBlock(InlineFont(b=True), texto)
+
+
+def _formato_observaciones(valor: Any) -> Any:
+    """
+    Los motivos de rechazo, numerados y con el titular en negrita.
+
+    Un motivo por regla incumplida, así que la numeración cuadra con la columna
+    "Reglas falladas". Cuando una regla encontró varios problemas —es el caso de
+    las validaciones internas, que recorren los cuatro documentos— cada hallazgo
+    baja a su propia línea bajo el número.
+
+    Sin motivos se dice explícitamente que todo pasó: una celda vacía no
+    distingue "sin observaciones" de "no se evaluó".
+    """
+    motivos = valor if isinstance(valor, list) else (
+        [x.strip() for x in str(valor).split(";") if x.strip()] if valor else []
+    )
+
+    if not motivos:
+        return CellRichText([_negrita("Todas las validaciones fueron aprobadas")])
+
+    partes: list = []
+    for n, motivo in enumerate(motivos, start=1):
+        if partes:
+            partes.append("\n")
+
+        titular, _, resto = str(motivo).partition(":")
+        partes.append(_negrita(f"{n}- {titular.strip()}:"))
+
+        # Los hallazgos de una misma regla vienen separados por " | ".
+        for hallazgo in [h.strip() for h in resto.split("|") if h.strip()]:
+            partes.append(f"\n   {hallazgo}")
+
+    return CellRichText(partes)
+
+
+def _formato_regla(valor: Any) -> Any:
+    """
+    Una regla explicada: qué evaluó, sobre qué campos y con qué resultado.
+
+    El encabezado va en negrita para poder barrer la fila de un vistazo y ver
+    cuál falló, sin leer el detalle de las siete.
+    """
+    if not isinstance(valor, dict):
+        return None
+
+    resultado = valor.get("resultado", "?")
+    titular = f"{valor.get('regla', 'regla')} — {resultado}"
+
+    partes: list = [_negrita(titular)]
+
+    mensaje = valor.get("mensaje")
+    if mensaje and resultado != "cumple":
+        partes.append(f"\n{mensaje}")
+
+    campos = valor.get("campos")
+    if campos:
+        listado = ", ".join(campos) if isinstance(campos, list) else str(campos)
+        partes.append(f"\nCompara: {listado}")
+
+    detalle = valor.get("detalle")
+    if detalle:
+        partes.append(f"\n{detalle}")
+
+    return CellRichText(partes)
+
+
+_FORMATOS = {
+    "rut": _formato_rut,
+    "fecha": _formato_fecha,
+    "observaciones": _formato_observaciones,
+    "regla": _formato_regla,
+}
+
+# Cómo se ve cada formato en la planilla. Lo que no está acá va sin formato.
+_FORMATO_CELDA = {
+    "fecha": "DD-MM-YYYY",
+    "monto": "#,##0",
+}
+
+
+def _aplicar_formato(valor: Any, formato: str | None) -> Any:
+    # `observaciones` es la excepción: con valor nulo tiene algo que decir
+    # —"todas aprobadas"—, mientras que el resto sin dato deja la celda vacía.
+    if not formato:
+        return valor
+    if valor is None and formato != "observaciones":
+        return valor
+    convertir = _FORMATOS.get(formato)
+    return convertir(valor) if convertir else valor
+
+
 def _celda(valor: Any) -> Any:
     """Lo que openpyxl puede escribir tal cual."""
+    if isinstance(valor, CellRichText):
+        return valor
+    if isinstance(valor, list):
+        # Última parada para una lista sin formateador propio.
+        return "; ".join(str(x) for x in valor)
     if isinstance(valor, datetime):
         return valor.replace(tzinfo=None)
     if isinstance(valor, (int, float, date, str)) or valor is None:
@@ -156,7 +330,20 @@ def generar(
 
     for solicitud in filas:
         documentos = solicitud.get("documentos_detalle") or []
-        hoja.append([_celda(_valor(c, solicitud, documentos)) for c in columnas])
+        hoja.append([
+            _celda(_aplicar_formato(_valor(c, solicitud, documentos), c.get("formato")))
+            for c in columnas
+        ])
+
+    # Presentación de fechas y montos. Va en el formato de celda y no en el
+    # valor: la celda sigue conteniendo un número o una fecha, así que Excel la
+    # ordena y filtra bien, y solo cambia cómo se muestra.
+    for i, columna in enumerate(columnas, start=1):
+        formato_celda = _FORMATO_CELDA.get(columna.get("formato") or "")
+        if not formato_celda:
+            continue
+        for fila in hoja.iter_rows(min_row=2, min_col=i, max_col=i):
+            fila[0].number_format = formato_celda
 
     # Ancho por contenido, acotado: las observaciones son párrafos y sin tope
     # dejarían una columna de miles de píxeles.
@@ -169,9 +356,15 @@ def generar(
         ancho = min(_ANCHO_MAXIMO, max(_ANCHO_MINIMO, max(largos) + 2))
         hoja.column_dimensions[get_column_letter(i)].width = ancho
 
-        # Las columnas anchas llevan texto ajustado, que es como se lee un
-        # párrafo de observaciones en Excel.
-        if ancho >= _ANCHO_MAXIMO:
+        # Texto ajustado cuando la columna es ancha —un párrafo de
+        # observaciones— o cuando alguna celda trae saltos de línea. Sin esto
+        # Excel los ignora y pega todo seguido: "…— cumpleLos 4 documentos…".
+        multilinea = any(
+            "\n" in str(fila[0].value)
+            for fila in hoja.iter_rows(min_row=2, min_col=i, max_col=i)
+            if fila[0].value is not None
+        )
+        if ancho >= _ANCHO_MAXIMO or multilinea:
             for fila in hoja.iter_rows(min_row=2, min_col=i, max_col=i):
                 fila[0].alignment = Alignment(wrap_text=True, vertical="top")
 

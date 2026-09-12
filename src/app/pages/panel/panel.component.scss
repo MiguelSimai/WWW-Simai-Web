@@ -556,3 +556,51 @@
   text-decoration: underline;
   text-decoration-style: dotted;
 }
+
+/* Leyenda de estados. Cerrada por defecto: quien ya los conoce no necesita
+   verla en cada visita, y abierta ocuparía la mitad de la primera pantalla. */
+.leyenda {
+  margin: 0.5rem 0 1rem;
+}
+
+.leyenda__boton {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--color-primario, #2b5c8a);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.leyenda__boton:hover { text-decoration: none; }
+
+.leyenda__lista {
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.625rem;
+}
+
+.leyenda__item {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.leyenda__item dt { margin: 0; }
+
+.leyenda__item dd {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-texto-suave, #6a7484);
+}
+
+@media (max-width: 40rem) {
+  .leyenda__item {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}
