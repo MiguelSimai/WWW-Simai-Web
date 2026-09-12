@@ -135,6 +135,33 @@ def _valor(columna: dict, solicitud: dict, documentos: list[dict]) -> Any:
         indice = columna.get("indice", 0)
         return reglas[indice] if indice < len(reglas) else None
 
+    if origen == "validaciones":
+        # Las validaciones internas que el modelo evaluó DENTRO de un documento
+        # —firma, huella, timbre—, no los cruces entre documentos. Se filtran
+        # por `reglas` porque un documento tiene muchas y una columna muestra
+        # las de un tema: poner las once en la celda de firmas no se lee.
+        patron = columna.get("patron") or ""
+        hallado = next((d for d in documentos if _coincide(d["archivo"], patron)), None)
+        if hallado is None:
+            return None
+
+        datos = hallado.get("respuesta_ia")
+        if not isinstance(datos, dict):
+            return None
+
+        validaciones = datos.get("validaciones")
+        if not isinstance(validaciones, list):
+            return None
+
+        pedidas = columna.get("reglas")
+        if pedidas:
+            orden = {codigo: i for i, codigo in enumerate(pedidas)}
+            validaciones = sorted(
+                (v for v in validaciones if v.get("regla") in orden),
+                key=lambda v: orden[v["regla"]],
+            )
+        return validaciones or None
+
     if origen == "documento":
         patron = columna.get("patron") or ""
         hallado = next((d for d in documentos if _coincide(d["archivo"], patron)), None)
@@ -330,11 +357,45 @@ def _formato_regla(valor: Any) -> Any:
     return _enriquecido(partes)
 
 
+def _formato_validaciones(valor: Any) -> Any:
+    """
+    Las validaciones internas de un documento, una por línea.
+
+    El nombre en negrita y el resultado al lado, para poder barrer la columna y
+    ver cuál falló sin leer los detalles. El detalle solo se muestra cuando NO
+    cumple: en las que pasan repite lo que ya dice el resultado y alarga la
+    celda sin aportar.
+
+    Un documento que no vino deja la celda vacía —eso lo resuelve `_valor`
+    devolviendo None—, que es distinto de un documento presente cuyas
+    validaciones no se evaluaron.
+    """
+    if not isinstance(valor, list) or not valor:
+        return None
+
+    partes: list = []
+    for v in valor:
+        if not isinstance(v, dict):
+            continue
+        if partes:
+            partes.append("\n")
+
+        resultado = v.get("resultado", "?")
+        partes.append(_negrita(f"{v.get('regla', 'validación')}: {resultado}"))
+
+        detalle = v.get("detalle")
+        if detalle and resultado != "cumple":
+            partes.append(f"\n   {detalle}")
+
+    return _enriquecido(partes) if partes else None
+
+
 _FORMATOS = {
     "rut": _formato_rut,
     "fecha": _formato_fecha,
     "observaciones": _formato_observaciones,
     "regla": _formato_regla,
+    "validaciones": _formato_validaciones,
 }
 
 # Cómo se ve cada formato en la planilla. Lo que no está acá va sin formato.
