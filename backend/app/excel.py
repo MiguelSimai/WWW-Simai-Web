@@ -197,8 +197,60 @@ def _formato_fecha(valor: Any) -> Any:
         return valor
 
 
+# Marca interna para el blanco que todavía no tiene a quién pegarse.
+_PENDIENTE = "\x00"
+
+
 def _negrita(texto: str) -> TextBlock:
     return TextBlock(InlineFont(b=True), texto)
+
+
+def _enriquecido(partes: list) -> CellRichText:
+    """
+    Arma el texto enriquecido sin dejar runs que sean puro espacio en blanco.
+
+    openpyxl marca `xml:space="preserve"` solo cuando el run trae algo además
+    del blanco. Un run que es únicamente "\n" sale sin esa marca, Excel le quita
+    el contenido al leerlo y rechaza el archivo entero: "Hemos encontrado un
+    problema con contenido". Por eso el separador se pega al run siguiente —o al
+    anterior, si va al final— en vez de viajar solo.
+    """
+    pendiente = ""
+    resultado: list = []
+
+    for parte in partes:
+        if isinstance(parte, TextBlock):
+            texto = (parte.text or "")
+            if pendiente:
+                parte = TextBlock(parte.font, pendiente + texto)
+                pendiente = ""
+            resultado.append(parte)
+            continue
+
+        texto = str(parte)
+        if not texto:
+            continue
+        if not texto.strip():
+            pendiente += texto
+            continue
+
+        texto = pendiente + texto
+        pendiente = ""
+        # Dos runs planos seguidos son un solo run: menos XML y menos aristas.
+        if resultado and isinstance(resultado[-1], str):
+            resultado[-1] += texto
+        else:
+            resultado.append(texto)
+
+    if pendiente and resultado:
+        ultima = resultado[-1]
+        resultado[-1] = (
+            TextBlock(ultima.font, (ultima.text or "") + pendiente)
+            if isinstance(ultima, TextBlock)
+            else ultima + pendiente
+        )
+
+    return CellRichText(resultado)
 
 
 def _formato_observaciones(valor: Any) -> Any:
@@ -218,7 +270,7 @@ def _formato_observaciones(valor: Any) -> Any:
     )
 
     if not motivos:
-        return CellRichText([_negrita("Todas las validaciones fueron aprobadas")])
+        return _enriquecido([_negrita("Todas las validaciones fueron aprobadas")])
 
     partes: list = []
     for n, motivo in enumerate(motivos, start=1):
@@ -232,7 +284,7 @@ def _formato_observaciones(valor: Any) -> Any:
         for hallazgo in [h.strip() for h in resto.split("|") if h.strip()]:
             partes.append(f"\n   {hallazgo}")
 
-    return CellRichText(partes)
+    return _enriquecido(partes)
 
 
 def _formato_regla(valor: Any) -> Any:
@@ -263,7 +315,7 @@ def _formato_regla(valor: Any) -> Any:
     if detalle:
         partes.append(f"\n{detalle}")
 
-    return CellRichText(partes)
+    return _enriquecido(partes)
 
 
 _FORMATOS = {

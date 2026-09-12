@@ -7,6 +7,15 @@ import { EstadoSolicitud, Solicitud, SolicitudDetalle } from './modelos';
 /** Cada cuánto se vuelve a preguntar mientras algo está en proceso. */
 const ESPERA_MS = 10_000;
 
+/**
+ * Cuánto se espera antes de soltar el blob de una descarga.
+ *
+ * Generoso a propósito: mientras no se revoque, el archivo ocupa memoria, pero
+ * revocarlo antes de tiempo corta la descarga. Un minuto cubre de sobra una
+ * planilla, que es lo único que baja por acá.
+ */
+const _MS_LIBERAR_DESCARGA = 60_000;
+
 interface RespuestaLista {
   readonly solicitudes: readonly Solicitud[];
   readonly total: number;
@@ -153,11 +162,21 @@ export class SolicitudesService {
     const disposicion = respuesta.headers.get('Content-Disposition') ?? '';
     const nombre = /filename="?([^";]+)"?/.exec(disposicion)?.[1] ?? 'solicitudes.xlsx';
 
+    const fuente = URL.createObjectURL(cuerpo);
     const enlace = document.createElement('a');
-    enlace.href = URL.createObjectURL(cuerpo);
+    enlace.href = fuente;
     enlace.download = nombre;
+
+    // Firefox ignora el click sobre un enlace que no está en el documento.
+    enlace.style.display = 'none';
+    document.body.appendChild(enlace);
     enlace.click();
-    URL.revokeObjectURL(enlace.href);
+    enlace.remove();
+
+    // El navegador lee el blob después del click, no durante: revocar en el
+    // mismo tick le quita la fuente a una descarga que recién arranca y el
+    // archivo llega truncado. Se libera más tarde, cuando ya se copió.
+    setTimeout(() => URL.revokeObjectURL(fuente), _MS_LIBERAR_DESCARGA);
   }
 
   /**
