@@ -271,19 +271,51 @@ nada.
 
 Las columnas **no son genéricas** — el cliente de créditos automotrices espera
 `NumeroOperacion`, `Patente`, una columna por tipo de documento y `Observaciones`; otro
-esperará otra cosa. Por eso viven en la tabla `plantillas_excel`, una por servicio, y agregar
-un cliente no es un despliegue. Cada columna declara de dónde sale su valor:
+esperará otra cosa. Por eso viven en la tabla `plantillas_excel` y agregar un cliente no es un
+despliegue.
 
-| `origen` | De dónde | Ejemplo de `campo` |
+La plantilla se elige por el cruce **(cuenta, servicio)**, no por servicio solo: el vínculo es
+`cuenta_procesos.plantilla_id`. Dos clientes del mismo servicio pueden tener planillas
+distintas, y un cliente tiene una por cada servicio que contrató. `plantilla_id` en `NULL`
+significa "usar `COLUMNAS_GENERICAS`", así que un nombre mal escrito en un script de alta no
+falla: entrega la planilla equivocada en silencio. Para eso está
+`Arquitectura-IA/asignar-plantilla-excel.sql`, que aborta en vez de asignar mal.
+
+Cada columna declara de dónde sale su valor:
+
+| `origen` | De dónde | Ejemplo |
 |---|---|---|
 | `solicitud` | Una columna de `solicitudes` | `numero_cliente`, `estado`, `costo` |
 | `consolidado` | El `respuesta_ia` del expediente, con rutas por punto | `patente`, `deudor.rut` |
 | `documento` | El documento cuyo nombre contenga `patron` | `estado`, `presencia`, `resultado` |
+| `regla` | La validación de ese `codigo` dentro del consolidado | `codigo: "rut_titular_coincide"` |
 
-Detalles que importan al leer [excel.py](backend/app/excel.py): el matcheo de documento ignora
-tildes y mayúsculas (`Pagaré (1).PDF` cuenta como `PAGARE`); un documento ausente deja la celda
-**vacía**, no un "No", para no confundirlo con un resultado del análisis; una lista se une con
-"; " en una celda; y un servicio sin plantilla cae a `COLUMNAS_GENERICAS`.
+Una columna puede declarar `fuentes` —una lista de orígenes en orden de preferencia— en vez de
+un origen único: el número de operación se busca en la carta, si no en el contrato, si no en el
+pagaré. Y `formato` elige cómo se escribe la celda: `rut`, `fecha`, `monto`, `observaciones`,
+`regla`.
+
+`origen: "regla"` se identifica por **`codigo`, nunca por posición**. Existe un `indice`
+heredado que sigue funcionando para plantillas viejas, pero las validaciones llegan en el orden
+de `iagw_reglas_config.orden`: intercalar una regla nueva corre todas las columnas y "Regla 1"
+pasa a mostrar otra cosa, sin error y sin que nadie se entere.
+
+Detalles que importan al leer [excel.py](backend/app/excel.py):
+
+- El matcheo de documento ignora tildes y mayúsculas: `Pagaré (1).PDF` cuenta como `PAGARE`.
+- Un documento ausente deja la celda **vacía**, no un "No", para no confundirlo con un
+  resultado del análisis.
+- `_del_json` devuelve las listas **intactas**. Antes las unía con "; " y el formateador de
+  observaciones volvía a partirlas por ";", de modo que un motivo que contuviera un punto y
+  coma se convertía en dos y la cuenta dejaba de cuadrar con "Reglas falladas".
+- Las celdas con negrita parcial se arman con `CellRichText`, y **ningún fragmento puede ser
+  solo espacio en blanco**. openpyxl marca `xml:space="preserve"` únicamente cuando el
+  fragmento trae texto además del blanco; uno que es sólo `"\n"` sale sin esa marca, Excel le
+  quita el contenido al leerlo y rechaza el archivo entero con *"Hemos encontrado un problema
+  con contenido"*. De eso se encarga `_enriquecido()`: pega el separador al fragmento vecino.
+  No construir `CellRichText` directamente.
+- El ajuste de texto (`wrap_text`) se activa por ancho de columna **o** porque alguna celda
+  trae saltos de línea. Sin eso Excel los ignora y pega todo seguido.
 
 ### Probar sin el motor
 
