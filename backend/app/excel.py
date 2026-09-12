@@ -111,17 +111,29 @@ def _valor(columna: dict, solicitud: dict, documentos: list[dict]) -> Any:
         return _del_json(datos, campo)
 
     if origen == "regla":
-        # Una columna por regla, en el orden en que se evaluaron. Devuelve el
-        # objeto entero —no un campo— porque el formateador necesita el nombre,
-        # el resultado, lo que comparó y el detalle para armar la celda.
+        # Una columna por regla. Devuelve el objeto entero —no un campo— porque
+        # el formateador necesita el nombre, el resultado, lo que comparó y el
+        # detalle para armar la celda.
+        #
+        # Se identifica por `codigo`. El `indice` posicional sigue aceptándose
+        # para las plantillas viejas, pero no debería usarse en las nuevas: las
+        # validaciones vienen en el orden de `iagw_reglas_config.orden`, así que
+        # intercalar una regla corre todas las columnas y "Regla 1" pasa a
+        # mostrar otra cosa, sin error y sin que nadie se entere.
         consolidado = solicitud.get("respuesta_ia")
         if not isinstance(consolidado, dict):
             return None
+
         reglas = consolidado.get("validaciones")
-        indice = columna.get("indice", 0)
-        if not isinstance(reglas, list) or indice >= len(reglas):
+        if not isinstance(reglas, list):
             return None
-        return reglas[indice]
+
+        codigo = columna.get("codigo")
+        if codigo:
+            return next((r for r in reglas if r.get("regla") == codigo), None)
+
+        indice = columna.get("indice", 0)
+        return reglas[indice] if indice < len(reglas) else None
 
     if origen == "documento":
         patron = columna.get("patron") or ""
