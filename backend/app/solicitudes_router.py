@@ -14,7 +14,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
-from . import cuentas, excel, gateway_client, medicion, motor_db
+from . import cuentas, excel, firmas, gateway_client, medicion, motor_db
 from .catalogo import servicio_por_id
 from .db import pool
 from .dependencias import conexion, sesion_actual
@@ -538,6 +538,26 @@ def crear_solicitud(
                 status_code=422,
                 detail=f"{nombre}: {svc.nombre} no procesa archivos {extension}.",
             )
+
+        # Hasta acá solo se miró el nombre, que lo escribe quien sube. Los
+        # bytes no mienten: sin esto, cualquier cosa renombrada a .pdf entraba,
+        # se le cobraba el saldo al cliente y la rechazaba el gateway varias
+        # capas después.
+        #
+        # Solo se revisan los formatos que firmas.py conoce. Uno nuevo —un
+        # proceso que acepte otra cosa— pasa de largo y lo valida el gateway,
+        # que es quien tiene la configuración por proceso. Ver firmas.py.
+        if firmas.vigilada(extension):
+            tipo = firmas.tipo_real(contenido)
+            if not firmas.corresponde(extension, tipo):
+                detalle = f"por dentro es {tipo}" if tipo else "no se reconoce su formato"
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"{nombre} no es un archivo {extension}: {detalle}. "
+                        "Cambiarle el nombre no le cambia el formato."
+                    ),
+                )
 
         # Las hojas en blanco se quitan ANTES de medir: si se midiera primero,
         # el cliente pagaría por reversos vacíos que el motor nunca analiza.

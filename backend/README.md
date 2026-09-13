@@ -341,6 +341,41 @@ El arreglo de fondo es no tener los archivos en memoria, y ya está previsto:
 cuando el contenido viaje por Blob Storage en vez de en base64 dentro del body,
 el tope del expediente deja de hacer falta.
 
+## Qué es cada archivo, de verdad
+
+La extensión del nombre la escribe quien sube el archivo: renombrar cualquier
+cosa a `.pdf` la hacía entrar. Se cobraba el saldo, se despachaba al motor, y
+recién el Doc_Check del gateway —que sí mira los bytes— la rechazaba, varias
+capas después.
+
+`app/firmas.py` mira los primeros bytes antes de aceptar nada. Si no reconoce
+el formato, o si el formato no corresponde a la extensión, el archivo no entra.
+
+**La tabla de firmas es la misma que la del gateway** (`app/services/doc_check.py`
+en ia-api-gateway), a propósito: si el portal fuera más estricto rechazaría
+archivos que la capa siguiente sí acepta, y si fuera más laxo el cliente pagaría
+por algo que se va a rechazar igual. Si allá se agrega una firma, acá también.
+
+Lo que sí cambia es qué se hace con una discrepancia: el gateway la deja como
+advertencia y sigue; el portal rechaza. Es la diferencia entre anotar el
+problema y no dejarlo entrar, y la puerta es el portal.
+
+**El portal solo opina de los formatos que conoce.** Una extensión que no esté
+en la tabla pasa sin revisar. Es a propósito: el Doc_Check del gateway se
+configura **por proceso** contra `iagw_configuracion_proceso`, así que
+habilitarle a un cliente un proceso que acepte un formato nuevo no obliga a
+tocar este repo. Si acá se rechazara lo desconocido, cada proceso nuevo
+empezaría rechazándole los archivos al cliente hasta que alguien se acordara de
+venir a agregar la firma — y eso se descubre en producción, con el cliente
+mirando.
+
+La autoridad sobre qué acepta cada proceso es el gateway. Esto es un filtro
+temprano para lo evidente, no una segunda fuente de verdad.
+
+Un detalle heredado: el mapa de extensiones del gateway no incluye audio, así
+que allá **todo** archivo de audio genera un aviso de discrepancia. Acá sí está,
+porque acá la discrepancia rechaza y si no quedaría fuera toda transcripción.
+
 ## Antes de publicar
 
 - [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)

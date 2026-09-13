@@ -114,7 +114,7 @@ _HSTS = b"max-age=31536000; includeSubDomains"
 
 class CabecerasSeguridad:
     """
-    Agrega HSTS a las respuestas que salieron por HTTPS.
+    Agrega las cabeceras de seguridad: `nosniff` siempre y HSTS sobre HTTPS.
 
     Esto normalmente lo pone el servidor web —el front lo hace desde su
     `.htaccess`—, pero acá no hay quien lo haga: bajo Passenger esas reglas no
@@ -133,17 +133,22 @@ class CabecerasSeguridad:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not _llego_por_https(scope):
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+
+        # `nosniff` va siempre: la API responde JSON y no hay motivo para que
+        # el navegador intente adivinar otra cosa. HSTS solo sobre HTTPS, por
+        # lo dicho en el docstring.
+        extra = [(b"x-content-type-options", b"nosniff")]
+        if _llego_por_https(scope):
+            extra.append((b"strict-transport-security", _HSTS))
 
         async def enviar(mensaje: dict) -> None:
             if mensaje["type"] == "http.response.start":
                 # Lista nueva en vez de `append`: el mensaje lo arma otro
                 # middleware y no corresponde modificarle su estructura.
-                mensaje["headers"] = list(mensaje.get("headers", [])) + [
-                    (b"strict-transport-security", _HSTS)
-                ]
+                mensaje["headers"] = list(mensaje.get("headers", [])) + extra
             await send(mensaje)
 
         await self.app(scope, receive, enviar)
