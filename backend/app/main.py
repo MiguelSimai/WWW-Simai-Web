@@ -100,6 +100,54 @@ class RedireccionHTTPS:
         await RedirectResponse(str(destino), status_code=308)(scope, receive, send)
 
 
+# Un año, el valor estándar. El compromiso que crea es real: mientras esté
+# vigente, un navegador que ya visitó el dominio se niega a hablarle por HTTP, y
+# si el certificado venciera sin renovarse la API queda inaccesible hasta
+# arreglarlo. Para desactivarlo no basta con quitar la cabecera —los navegadores
+# ya la tienen guardada—: hay que publicar "max-age=0" y esperar a que la vean.
+#
+# Sin `preload`: eso mete el dominio en una lista que los navegadores traen de
+# fábrica, y salir de ahí toma meses.
+_HSTS = b"max-age=31536000; includeSubDomains"
+
+
+class CabecerasSeguridad:
+    """
+    Agrega HSTS a las respuestas que salieron por HTTPS.
+
+    Esto normalmente lo pone el servidor web —el front lo hace desde su
+    `.htaccess`—, pero acá no hay quien lo haga: bajo Passenger esas reglas no
+    llegan a aplicarse (ver `forzar_https` en config.py). Así que lo pone la
+    aplicación, que es por donde la petición sí pasa.
+
+    Va solo sobre HTTPS. No es por prudencia: sobre HTTP el navegador ignora la
+    cabecera por especificación, porque quien pueda alterar una respuesta en
+    claro también podría inyectarla o quitarla.
+
+    De paso, esto hace que en local no aparezca nunca —ahí se trabaja sobre
+    http://localhost— y no haya que acordarse de apagarla.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not _llego_por_https(scope):
+            await self.app(scope, receive, send)
+            return
+
+        async def enviar(mensaje: dict) -> None:
+            if mensaje["type"] == "http.response.start":
+                # Lista nueva en vez de `append`: el mensaje lo arma otro
+                # middleware y no corresponde modificarle su estructura.
+                mensaje["headers"] = list(mensaje.get("headers", [])) + [
+                    (b"strict-transport-security", _HSTS)
+                ]
+            await send(mensaje)
+
+        await self.app(scope, receive, enviar)
+
+
 app = FastAPI(title="SimAI API")
 
 # Cookie temporal que sólo sostiene `state` y `nonce` durante el ida y vuelta
@@ -130,6 +178,8 @@ app.add_middleware(
 #
 # Apagado no se instala siquiera: en local se trabaja sobre http://localhost y
 # no hay nada que redirigir.
+app.add_middleware(CabecerasSeguridad)
+
 if config.forzar_https:
     app.add_middleware(RedireccionHTTPS)
 

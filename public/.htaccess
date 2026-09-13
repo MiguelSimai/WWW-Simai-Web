@@ -52,6 +52,26 @@
 
 # ── Cabeceras de seguridad ────────────────────────────────────────────────
 <IfModule mod_headers.c>
+  # HSTS: el navegador deja de hablarle a este dominio por HTTP, ni siquiera
+  # para que lo redirijan. Cierra la única ventana que la redirección no puede
+  # cerrar — la primera petición en claro, que alguien en la misma red puede
+  # interceptar antes de que el 301 alcance a llegar.
+  #
+  # `includeSubDomains` alcanza también a api.simai.cl, que es la que recibe
+  # los documentos. A cambio, cualquier subdominio que se cree de acá en
+  # adelante tiene que servir HTTPS desde el primer día.
+  #
+  # Un año es el valor estándar, y el compromiso que crea es real: si el
+  # certificado venciera sin renovarse, el sitio queda inaccesible hasta que se
+  # arregle. No hay "continuar de todos modos" que el visitante pueda apretar.
+  #
+  # Sin `preload` a propósito: eso mete el dominio en una lista que los
+  # navegadores traen de fábrica, y salir de ahí toma meses.
+  #
+  # No hace falta condicionarla a HTTPS: sobre HTTP el navegador la ignora por
+  # especificación.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
   # Impide que el sitio se cargue dentro de un iframe ajeno (clickjacking).
   Header always set X-Frame-Options "SAMEORIGIN"
   # El navegador no adivina el tipo de contenido.

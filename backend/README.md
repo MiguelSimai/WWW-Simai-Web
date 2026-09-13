@@ -239,6 +239,41 @@ el redirect agrega un salto a cada petición: `PUBLIC_URL` y
 `GOOGLE_REDIRECT_URI` en las variables de la app, la URL del callback en el
 flujo de N8N y `apiUrl` en `src/environments/environment.ts`.
 
+## HSTS
+
+`Strict-Transport-Security: max-age=31536000; includeSubDomains`, en los dos
+dominios.
+
+Es lo que la redirección sola no puede dar. Con solo el 301, la primera
+petición del día sigue saliendo en claro y alguien en la misma red puede
+quedarse con ella antes de que la respuesta llegue. Con HSTS el navegador ni
+siquiera la manda: recuerda que este dominio es HTTPS y reescribe la URL él
+mismo.
+
+Cada dominio la sirve por su lado, y no por gusto:
+
+- **simai.cl** desde `public/.htaccess`, que Angular copia al `dist` en cada
+  build.
+- **api.simai.cl** desde `CabecerasSeguridad`, en `app/main.py`, porque bajo
+  Passenger un `.htaccess` no llega a aplicarse.
+
+El `includeSubDomains` de simai.cl ya alcanza a api.simai.cl; que la API mande
+además la suya es a propósito, para que no dependa de que el visitante haya
+pasado antes por el front.
+
+Dos cosas que hay que tener presentes, porque HSTS no se deshace apretando un
+botón:
+
+- **El certificado pasa a ser crítico.** Si venciera sin renovarse, el sitio
+  queda inaccesible: el navegador ya no ofrece el "continuar de todos modos".
+  Vale la pena mirar de vez en cuando que el AutoSSL de cPanel esté renovando.
+- **Para desactivarlo** no basta con quitar la cabecera: los navegadores que ya
+  la vieron la tienen guardada por un año. Hay que publicar `max-age=0` y
+  esperar a que cada uno vuelva a pasar.
+
+No se usa `preload`, que metería el dominio en una lista que los navegadores
+traen de fábrica y de la que salir toma meses.
+
 ## Antes de publicar
 
 - [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)
