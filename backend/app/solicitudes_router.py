@@ -27,6 +27,61 @@ router = APIRouter(prefix="/api/solicitudes", tags=["solicitudes"])
 # subir en vez de a mitad del despacho.
 _MAX_DOCUMENTOS = 100
 
+# Tope del expediente COMPLETO, en MB.
+#
+# El tope por documento son 25 MB (ver catalogo.py) y caben 100 en un
+# expediente: 2,5 GB que esta función se cargaba enteros en memoria, porque
+# guarda el contenido de todos antes de despachar el primero. Y el navegador
+# manda tres expedientes en paralelo. En un hosting compartido eso no lo tumba
+# un atacante: lo tumba un cliente con una carga grande.
+#
+# 150 MB cubre de sobra lo que se ve en la práctica —una carpeta de escaneos
+# son unas decenas de MB— y deja el peor caso en algo que el servidor aguanta.
+# Quien necesite más divide el envío, que además es lo que conviene: cien
+# documentos en una sola petición tampoco es buena idea.
+#
+# El arreglo de fondo es no tener los archivos en memoria, y ya está previsto:
+# cuando el contenido viaje por Blob Storage en vez de en base64 dentro del
+# body (ver catalogo.py), este tope deja de hacer falta.
+_MAX_MB_EXPEDIENTE = 150
+
+# De a cuánto se lee. En 1 MB Starlette ya volcó el archivo a disco, así que
+# leer por trozos no agrega viajes de más.
+_TROZO_LECTURA = 1024 * 1024
+
+
+def _leer_con_tope(subido: UploadFile, tope: int) -> bytes | None:
+    """
+    Devuelve el contenido, o None si el archivo pasa del tope.
+
+    Antes esto era un `subido.file.read()` pelado y el tamaño se comprobaba
+    después, con el archivo ya en memoria: alguien que mandara 2 GB los hacía
+    cargar enteros para que recién ahí se le dijera que el máximo son 25.
+
+    Se mira primero lo que declara el parser (`size`), que es el caso normal y
+    no cuesta nada. La lectura por trozos cubre que `size` venga en None —el
+    parser no siempre lo informa— sin volver a confiar en que el archivo pese
+    lo que dice.
+    """
+    if subido.size is not None and subido.size > tope:
+        return None
+
+    trozos: list[bytes] = []
+    total = 0
+
+    while True:
+        trozo = subido.file.read(_TROZO_LECTURA)
+        if not trozo:
+            break
+
+        total += len(trozo)
+        if total > tope:
+            return None
+
+        trozos.append(trozo)
+
+    return b"".join(trozos)
+
 # Las fechas que el usuario escribe son días de SU calendario, no de UTC.
 #
 # `creada_en` es timestamptz y el servidor corre en UTC, así que comparar contra
@@ -450,17 +505,31 @@ def crear_solicitud(
     # ── 1. Validar y medir el expediente completo ────────────────────────────
     documentos: list[dict] = []
     tope_bytes = svc.max_mb * 1024 * 1024
+    tope_expediente = _MAX_MB_EXPEDIENTE * 1024 * 1024
+    acumulado = 0
 
     for subido in archivos:
         nombre = subido.filename or "sin-nombre"
-        contenido = subido.file.read()
+        contenido = _leer_con_tope(subido, tope_bytes)
 
-        if not contenido:
-            raise HTTPException(status_code=422, detail=f"{nombre} está vacío.")
-        if len(contenido) > tope_bytes:
+        if contenido is None:
             raise HTTPException(
                 status_code=422,
                 detail=f"{nombre} supera el máximo de {svc.max_mb} MB.",
+            )
+        if not contenido:
+            raise HTTPException(status_code=422, detail=f"{nombre} está vacío.")
+
+        # El tope de cada documento no acota el del expediente: cien archivos
+        # de 25 MB pasan la revisión de a uno y suman 2,5 GB en memoria.
+        acumulado += len(contenido)
+        if acumulado > tope_expediente:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"El expediente pasa de {_MAX_MB_EXPEDIENTE} MB en total. "
+                    "Divídelo en dos envíos."
+                ),
             )
 
         extension = "." + nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""

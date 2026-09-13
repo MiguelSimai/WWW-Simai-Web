@@ -316,6 +316,31 @@ agrega queda más afuera—. Si quedara por fuera, el 429 saldría sin cabeceras
 CORS y el navegador mostraría un error de origen cruzado en vez del mensaje:
 imposible de diagnosticar desde soporte.
 
+## Cuánto puede pesar un expediente
+
+Dos topes, y el segundo es el que importa:
+
+- **25 MB por documento** (`max_mb` en catalogo.py, mientras el archivo viaje
+  en base64 dentro del body).
+- **150 MB el expediente completo** (`_MAX_MB_EXPEDIENTE` en
+  solicitudes_router.py).
+
+El segundo existe porque el primero no acotaba nada. Caben 100 documentos en un
+expediente, así que 100 x 25 MB son 2,5 GB que la función se cargaba enteros en
+memoria: guarda el contenido de todos antes de despachar el primero. Y el
+navegador manda tres expedientes en paralelo. En un hosting compartido eso no
+lo tumba un atacante, lo tumba un cliente con una carga grande.
+
+Aparte, el tamaño ahora se revisa **antes** de leer el archivo. Era un
+`subido.file.read()` pelado con la comprobación después: quien mandara 2 GB los
+hacía cargar enteros para que recién ahí se le dijera que el máximo son 25 MB.
+Se mira primero el `size` que informa el parser y, por si viene en None, la
+lectura va por trozos y corta al pasarse.
+
+El arreglo de fondo es no tener los archivos en memoria, y ya está previsto:
+cuando el contenido viaje por Blob Storage en vez de en base64 dentro del body,
+el tope del expediente deja de hacer falta.
+
 ## Antes de publicar
 
 - [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)
