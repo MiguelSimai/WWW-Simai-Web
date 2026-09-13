@@ -47,6 +47,19 @@ class Config(BaseSettings):
     # En local queda apagado: ahí se trabaja sobre http://localhost.
     forzar_https: bool = False
 
+    # Publica /docs, /redoc y /openapi.json.
+    #
+    # Cerrado en producción. Ese JSON entrega el mapa completo de la API —las
+    # rutas de administración, el endpoint del callback de N8N, la forma exacta
+    # de cada petición—, que es justo el trabajo de reconocimiento que no hay
+    # por qué regalarle a nadie. No abre ninguna puerta por sí solo; ahorra el
+    # rato de buscarlas.
+    #
+    # Por defecto cerrado, y en local se enciende desde el .env. Si alguien
+    # olvida configurarlo, lo que pasa es que se queda sin documentación, no
+    # que la publique sin darse cuenta.
+    docs_publicas: bool = False
+
     frontend_url: str = "http://localhost:4200"
 
     # --- Datos de transferencia ---

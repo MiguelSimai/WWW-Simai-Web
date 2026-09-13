@@ -274,10 +274,23 @@ botón:
 No se usa `preload`, que metería el dominio en una lista que los navegadores
 traen de fábrica y de la que salir toma meses.
 
+## La documentación de la API no es pública
+
+`/docs`, `/redoc` y `/openapi.json` salen solo si `DOCS_PUBLICAS` lo dice, y por
+defecto no lo dice. Estuvieron abiertos un tiempo: ese JSON es el mapa completo
+—las rutas de administración, el endpoint del callback, la forma exacta de cada
+petición— y no hay motivo para regalarlo.
+
+Apagado, FastAPI ni siquiera registra las rutas, así que pedirlas devuelve el
+mismo 404 que cualquier dirección inventada: no se confirma que existan.
+
+En local conviene `DOCS_PUBLICAS=true` en el `.env`, que es para lo que sirve.
+
 ## Antes de publicar
 
 - [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)
 - [ ] `SECRET_KEY` aleatorio y fuera del repositorio
+- [ ] `DOCS_PUBLICAS` sin definir o en `false`
 - [ ] Front y API bajo el mismo dominio (`simai.cl` y `api.simai.cl`), para que
       la cookie `SameSite=Lax` viaje sin problemas
 - [ ] Limitar intentos por IP en `/api/auth/login/google`

@@ -148,7 +148,15 @@ class CabecerasSeguridad:
         await self.app(scope, receive, enviar)
 
 
-app = FastAPI(title="SimAI API")
+app = FastAPI(
+    title="SimAI API",
+    # En None, FastAPI no registra la ruta: pedirla devuelve el mismo 404 que
+    # cualquier dirección inventada, así que ni siquiera confirma que la
+    # documentación exista y esté apagada. Ver `docs_publicas` en config.py.
+    docs_url="/docs" if config.docs_publicas else None,
+    redoc_url="/redoc" if config.docs_publicas else None,
+    openapi_url="/openapi.json" if config.docs_publicas else None,
+)
 
 # Cookie temporal que sólo sostiene `state` y `nonce` durante el ida y vuelta
 # a Google. No es la sesión del usuario: esa vive en Postgres.
