@@ -196,20 +196,26 @@ devolvía 200 en vez de mandar a HTTPS. La cookie de sesión lleva `Secure`, as�
 que nunca viajó en claro; lo que quedaba expuesto era el resto —los documentos
 que se suben y las respuestas— ante quien estuviera en la misma red.
 
-**La redirección está en la aplicación, no en el servidor**, que es donde
-normalmente va. El motivo: bajo Passenger, la petición llega a la app antes de
-que alcancen a aplicarse las reglas del servidor. Se probaron las dos vías
-obvias y ninguna sirvió:
+Hoy redirigen **dos capas**, y conviene entender por qué hay dos.
 
-- El switch **"Force HTTPS Redirect"** de cPanel (Dominios → api.simai.cl)
-  estaba encendido, y aun así la API contestaba en claro.
-- Un `.htaccess` en la carpeta de la aplicación tampoco se aplica: había uno
-  con la regla de HTTPS —del front, que alguien descomprimió ahí por error— y
-  no hacía nada.
+La del servidor es el switch **"Force HTTPS Redirect"** de cPanel (Dominios →
+api.simai.cl). Estuvo encendido un buen tiempo sin hacer nada: la API contestaba
+200 en claro igual. Lo que lo destrabó fue borrar un `.htaccess` del front que
+alguien había descomprimido por error dentro de la carpeta de la aplicación
+—`simai-api/`, junto con todo el build de Angular—; al sacarlo de ahí y
+reiniciar, el switch empezó a aplicar su 301. La relación causa-efecto no está
+confirmada al cien por ciento, pero el orden de los hechos fue ese.
 
-Así que vive en `RedireccionHTTPS`, en `app/main.py`, gobernada por la variable
-`FORZAR_HTTPS`. Es 308 y no 301 a propósito: un 301 convierte el POST del
+La de la aplicación es `RedireccionHTTPS`, en `app/main.py`, gobernada por la
+variable `FORZAR_HTTPS`. Está porque la del servidor ya falló una vez en
+silencio —el panel decía que estaba activa y no lo estaba— y eso no se nota
+hasta que alguien lo mide desde fuera. Si vuelve a caerse, la aplicación sigue
+redirigiendo. Responde 308 y no 301 a propósito: un 301 convierte el POST del
 callback de N8N en un GET sin cuerpo.
+
+En la práctica la del servidor atiende primero y la de la aplicación casi nunca
+llega a ejecutarse. Es una red de seguridad, y cuesta una comparación de texto
+por petición.
 
 Encenderla es en dos pasos, y el orden importa. Si el servidor informara mal el
 esquema de la conexión, la app redirigiría a HTTPS algo que YA es HTTPS y la
