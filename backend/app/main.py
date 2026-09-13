@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import URL
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .admin_router import router as admin_router
@@ -28,6 +28,7 @@ from .callbacks_router import router as callbacks_router
 from .cuenta_router import router as cuenta_router
 from .solicitudes_router import router as solicitudes_router
 from .config import config
+from .limites import Ventana
 from .db import pool
 from .motor_db import pool as pool_motor
 
@@ -148,6 +149,63 @@ class CabecerasSeguridad:
         await self.app(scope, receive, enviar)
 
 
+# Rutas que no se cuentan. `/api/salud` es la que se usa para vigilar que el
+# servicio esté vivo: frenarla sería frenar justo al que avisa cuando algo anda
+# mal.
+_SIN_LIMITE = ("/api/salud",)
+
+# Dos cubos separados, cada uno con su ventana. Ver limites.py.
+_por_minuto = Ventana(config.limite_por_minuto, 60.0)
+_login_por_hora = Ventana(config.limite_login_por_hora, 3600.0)
+
+
+class LimitePeticiones:
+    """
+    Corta con 429 a quien pase del cupo.
+
+    Va por dentro del CORS a propósito —se agrega antes, y el último que se
+    agrega queda más afuera—. Si quedara por fuera, el 429 saldría sin las
+    cabeceras de CORS y el navegador del cliente mostraría un error de origen
+    cruzado en vez del mensaje: imposible de diagnosticar desde soporte.
+
+    La clave es la IP, que acá es la de verdad porque LiteSpeed atiende directo
+    y no hay proxy delante. Si algún día se pone uno, `REMOTE_ADDR` pasa a ser
+    el del proxy y todos los clientes compartirían cupo; ahí habría que mirar
+    `x-forwarded-for`, y solo si el proxy es de confianza — esa cabecera la
+    escribe quien quiera.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("path") in _SIN_LIMITE:
+            await self.app(scope, receive, send)
+            return
+
+        cliente = scope.get("client")
+        ip = cliente[0] if cliente else "desconocida"
+
+        if scope.get("path", "").startswith("/api/auth/login/"):
+            ventana = _login_por_hora
+        else:
+            ventana = _por_minuto
+
+        espera = ventana.registrar(ip)
+        if not espera:
+            await self.app(scope, receive, send)
+            return
+
+        respuesta = JSONResponse(
+            {"detail": "Demasiadas peticiones. Intenta de nuevo en un momento."},
+            status_code=429,
+            # Lo que espera un cliente bien educado —y N8N, que reintenta con
+            # backoff— para saber cuándo volver en vez de insistir a ciegas.
+            headers={"Retry-After": str(int(espera) or 1)},
+        )
+        await respuesta(scope, receive, send)
+
+
 app = FastAPI(
     title="SimAI API",
     # En None, FastAPI no registra la ruta: pedirla devuelve el mismo 404 que
@@ -167,6 +225,9 @@ app.add_middleware(
     https_only=config.cookie_secure,
     max_age=600,
 )
+
+# Antes del CORS a propósito: así el 429 sale con sus cabeceras (ver la clase).
+app.add_middleware(LimitePeticiones)
 
 # El front vive en otro puerto, así que necesita CORS con credenciales.
 # allow_origins tiene que ser explícito: con "*" el navegador no manda cookies.

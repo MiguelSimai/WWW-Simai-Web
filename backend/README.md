@@ -286,6 +286,36 @@ mismo 404 que cualquier dirección inventada: no se confirma que existan.
 
 En local conviene `DOCS_PUBLICAS=true` en el `.env`, que es para lo que sirve.
 
+## Freno de peticiones
+
+Por IP, en `app/limites.py`, con dos cubos: `LIMITE_POR_MINUTO` (600, cualquier
+ruta) y `LIMITE_LOGIN_POR_HORA` (120, solo `/api/auth/login/*`). En 0 se apaga
+el que sea. `/api/salud` no se cuenta: frenarla sería frenar justo a lo que
+avisa cuando el servicio se cae.
+
+Los números son altos porque la clave es la IP y los clientes son empresas: una
+oficina entera sale por una sola, y encima el panel consulta cada diez segundos
+mientras haya algo en proceso. Un cupo apretado no frenaría a nadie con malas
+intenciones y sí echaría a un cliente en su día de más trabajo.
+
+**Lo que cubre y lo que no.** Frena a alguien golpeando desde una IP. No frena
+un ataque repartido entre muchas — eso se ataja delante del servidor, y para
+este portal no corresponde.
+
+Dos cosas que conviene saber antes de confiar en los números:
+
+- **La cuenta es por proceso.** Passenger levanta varios y cada uno lleva la
+  suya, así que el límite real es el configurado por la cantidad de procesos.
+  Llevarlo en la base sería exacto y costaría ~250 ms de Neon en cada petición,
+  que es peor que el problema.
+- **Se pierde al reiniciar.** Aceptable: reiniciar no es algo que un atacante
+  pueda provocar.
+
+El middleware va por dentro del CORS —se agrega antes, y el último que se
+agrega queda más afuera—. Si quedara por fuera, el 429 saldría sin cabeceras de
+CORS y el navegador mostraría un error de origen cruzado en vez del mensaje:
+imposible de diagnosticar desde soporte.
+
 ## Antes de publicar
 
 - [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)
@@ -293,5 +323,5 @@ En local conviene `DOCS_PUBLICAS=true` en el `.env`, que es para lo que sirve.
 - [ ] `DOCS_PUBLICAS` sin definir o en `false`
 - [ ] Front y API bajo el mismo dominio (`simai.cl` y `api.simai.cl`), para que
       la cookie `SameSite=Lax` viaje sin problemas
-- [ ] Limitar intentos por IP en `/api/auth/login/google`
+- [ ] Revisar que `LIMITE_POR_MINUTO` le quede holgado al cliente más grande
 - [ ] Tarea periódica que borre sesiones vencidas

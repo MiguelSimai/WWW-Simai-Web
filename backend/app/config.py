@@ -60,6 +60,25 @@ class Config(BaseSettings):
     # que la publique sin darse cuenta.
     docs_publicas: bool = False
 
+    # --- Freno de peticiones ---
+    #
+    # Qué alcanza a cubrir y qué no está en limites.py. En corto: frena a
+    # alguien golpeando desde una IP, no un ataque repartido.
+
+    # Peticiones por minuto y por IP, para cualquier ruta.
+    #
+    # Alto a propósito. La clave es la IP, y los clientes son empresas: una
+    # oficina entera sale por una sola IP, así que el cupo se reparte entre
+    # todos sus usuarios. Además el panel consulta cada diez segundos mientras
+    # haya algo en proceso. Un número apretado no frenaría a nadie malo y sí
+    # echaría a un cliente en su día de más trabajo.
+    limite_por_minuto: int = 600
+
+    # Logins por hora y por IP. Más estricto porque una persona entra una vez
+    # al día, no doscientas. Igual deja espacio para que una oficina completa
+    # se conecte a las nueve de la mañana.
+    limite_login_por_hora: int = 120
+
     frontend_url: str = "http://localhost:4200"
 
     # --- Datos de transferencia ---
