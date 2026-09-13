@@ -27,6 +27,20 @@ router = APIRouter(prefix="/api/solicitudes", tags=["solicitudes"])
 # subir en vez de a mitad del despacho.
 _MAX_DOCUMENTOS = 100
 
+# Las fechas que el usuario escribe son días de SU calendario, no de UTC.
+#
+# `creada_en` es timestamptz y el servidor corre en UTC, así que comparar contra
+# '2026-09-12' recorta en la medianoche UTC — las 21:00 de Chile. Todo lo
+# procesado de noche caía en el día siguiente y desaparecía del filtro y del
+# Excel sin que nadie lo notara.
+_ZONA_CLIENTE = "America/Santiago"
+
+# El borde de un día en la zona del cliente, expresado como instante absoluto.
+# `::date + n` se arma en hora local y `at time zone` lo lleva al instante UTC
+# que le corresponde, que es contra lo que se compara la columna.
+_BORDE_DIA = "((%s::date + %s)::timestamp at time zone '" + _ZONA_CLIENTE + "')"
+
+
 # Documentos que se despachan a la vez al motor.
 #
 # Cada envío es un POST independiente que tarda entre uno y dos segundos, casi
@@ -98,13 +112,13 @@ def _filtros(cuenta_id: str, estado, desde, hasta, buscar) -> tuple[str, list]:
         valores.append(estado)
 
     if desde:
-        condiciones.append("s.creada_en >= %s")
-        valores.append(desde)
+        condiciones.append(f"s.creada_en >= {_BORDE_DIA}")
+        valores += [desde, 0]
 
     if hasta:
         # El `hasta` que el usuario elige es un día completo, no su medianoche.
-        condiciones.append("s.creada_en < (%s::date + 1)")
-        valores.append(hasta)
+        condiciones.append(f"s.creada_en < {_BORDE_DIA}")
+        valores += [hasta, 1]
 
     if buscar:
         # Por número de expediente o por código: es como el cliente se refiere
@@ -215,12 +229,14 @@ def descargar_excel(
     parametros: list = [usuario["cuenta_id"]]
 
     if desde:
-        condiciones.append("s.creada_en >= %s")
-        parametros.append(_fecha(desde, "desde"))
+        # `_fecha` solo valida el formato; el recorte lo hace la BD, en la zona
+        # del cliente. Restar un día acá y allá daría dos resultados distintos.
+        condiciones.append(f"s.creada_en >= {_BORDE_DIA}")
+        parametros += [_fecha(desde, "desde").date(), 0]
     if hasta:
         # Menor que el día siguiente: así "hasta el 23" incluye todo el 23.
-        condiciones.append("s.creada_en < %s")
-        parametros.append(_fecha(hasta, "hasta") + timedelta(days=1))
+        condiciones.append(f"s.creada_en < {_BORDE_DIA}")
+        parametros += [_fecha(hasta, "hasta").date(), 1]
     if servicio:
         condiciones.append("s.servicio = %s")
         parametros.append(servicio)

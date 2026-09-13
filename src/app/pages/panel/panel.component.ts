@@ -199,7 +199,13 @@ export class PanelComponent implements OnInit, OnDestroy {
   private haceDias(dias: number): string {
     const fecha = new Date();
     fecha.setDate(fecha.getDate() - dias);
-    return fecha.toISOString().slice(0, 10);
+
+    // Se arma desde los componentes locales, no con toISOString(), que pasa a
+    // UTC: a las 21:00 en Chile allá ya es el día siguiente y el campo "hasta"
+    // aparecía con la fecha de mañana.
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${fecha.getFullYear()}-${mes}-${dia}`;
   }
 
   protected cambiarDesde(valor: string): void {
