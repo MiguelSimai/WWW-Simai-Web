@@ -78,4 +78,37 @@
   Header always set X-Content-Type-Options "nosniff"
   # No se filtra la URL completa al navegar a otros sitios.
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # CSP: de dónde puede cargar cosas la página, y hacia dónde puede mandarlas.
+  # Lo segundo es lo que más vale acá: aunque alguien lograra inyectar código,
+  # no tiene a dónde mandarse los datos — `connect-src` y `form-action` solo
+  # dejan pasar este sitio y la API.
+  #
+  # Directiva por directiva:
+  #   default-src 'self'      lo que no se nombre abajo, solo desde este sitio
+  #   script-src  'unsafe-inline'  ver la nota de abajo
+  #   style-src   'unsafe-inline'  Angular inyecta los estilos de cada
+  #                                componente como <style> en tiempo de
+  #                                ejecución, y el build mete el CSS crítico
+  #                                dentro del index.html
+  #   img-src     data: blob:  iconos embebidos y vistas previas locales
+  #   media-src   blob:        /enviar crea un <video> con el archivo del
+  #                            usuario para leer su duración antes de subirlo
+  #   connect-src la API, que vive en otro subdominio
+  #   form-action a dónde puede enviarse un formulario: acá y la API, nada más
+  #   frame-ancestors quién puede meternos en un iframe (clickjacking); es la
+  #                   versión moderna de X-Frame-Options, que se deja por los
+  #                   navegadores viejos
+  #   object-src 'none'  nada de <object> ni <embed>, que no se usan
+  #   base-uri 'self'    que nadie reescriba <base> y con eso redirija todas
+  #                      las rutas relativas a otro servidor
+  #
+  # Sobre `script-src 'unsafe-inline'`: debilita la política y hoy no hay cómo
+  # evitarlo. El build de Angular genera un `onload="this.media='all'"` en el
+  # link del CSS, y un hash lo cubriría, pero se rompe en silencio en cada
+  # actualización de Angular que cambie ese atributo — y romperse significa la
+  # página sin estilos. Para sacarlo hay que desactivar `inlineCriticalCss` en
+  # angular.json. Aun con esto, la política sigue impidiendo cargar scripts de
+  # otros dominios, que es por donde entra un ataque de verdad.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://api.simai.cl; frame-ancestors 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://api.simai.cl"
 </IfModule>
