@@ -129,6 +129,7 @@
             type="date"
             [value]="hasta()"
             [min]="desde()"
+            [max]="hoy"
             (change)="cambiarHasta($any($event.target).value)" />
         </label>
 
@@ -165,12 +166,14 @@
 
       <label class="campo">
         <span>Desde</span>
-        <input type="date" [value]="filtroDesde()" (input)="escribir(filtroDesde, $event)" />
+        <input type="date" [value]="filtroDesde()" [max]="filtroHasta() || hoy"
+               (input)="escribir(filtroDesde, $event)" />
       </label>
 
       <label class="campo">
         <span>Hasta</span>
-        <input type="date" [value]="filtroHasta()" (input)="escribir(filtroHasta, $event)" />
+        <input type="date" [value]="filtroHasta()" [min]="filtroDesde()" [max]="hoy"
+               (input)="escribir(filtroHasta, $event)" />
       </label>
 
       <button type="submit" class="btn btn--secondary">Filtrar</button>

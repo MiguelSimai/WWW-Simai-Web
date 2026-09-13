@@ -196,6 +196,16 @@ export class PanelComponent implements OnInit, OnDestroy {
   protected readonly descargando = signal(false);
   protected readonly errorDescarga = signal<string | null>(null);
 
+  /**
+   * Tope de los selectores de fecha: no se consulta el futuro.
+   *
+   * Es un getter y no un valor fijo para que una pestaña abierta toda la noche
+   * no quede con el tope de ayer.
+   */
+  protected get hoy(): string {
+    return this.haceDias(0);
+  }
+
   private haceDias(dias: number): string {
     const fecha = new Date();
     fecha.setDate(fecha.getDate() - dias);
