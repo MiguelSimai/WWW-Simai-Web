@@ -189,9 +189,53 @@ puede cambiar de dueño dentro de una empresa; el `sub` es permanente. Ver
 **PKCE activado.** Sin él, quien intercepte el `code` puede canjearlo por un
 token.
 
+## HTTPS obligatorio
+
+La API respondía también por HTTP plano: `http://api.simai.cl/api/salud`
+devolvía 200 en vez de mandar a HTTPS. La cookie de sesión lleva `Secure`, así
+que nunca viajó en claro; lo que quedaba expuesto era el resto —los documentos
+que se suben y las respuestas— ante quien estuviera en la misma red.
+
+**La redirección está en la aplicación, no en el servidor**, que es donde
+normalmente va. El motivo: bajo Passenger, la petición llega a la app antes de
+que alcancen a aplicarse las reglas del servidor. Se probaron las dos vías
+obvias y ninguna sirvió:
+
+- El switch **"Force HTTPS Redirect"** de cPanel (Dominios → api.simai.cl)
+  estaba encendido, y aun así la API contestaba en claro.
+- Un `.htaccess` en la carpeta de la aplicación tampoco se aplica: había uno
+  con la regla de HTTPS —del front, que alguien descomprimió ahí por error— y
+  no hacía nada.
+
+Así que vive en `RedireccionHTTPS`, en `app/main.py`, gobernada por la variable
+`FORZAR_HTTPS`. Es 308 y no 301 a propósito: un 301 convierte el POST del
+callback de N8N en un GET sin cuerpo.
+
+Encenderla es en dos pasos, y el orden importa. Si el servidor informara mal el
+esquema de la conexión, la app redirigiría a HTTPS algo que YA es HTTPS y la
+API quedaría en un bucle. Por eso primero se comprueba:
+
+```bash
+# 1. Con FORZAR_HTTPS todavía apagado, subir el código y reiniciar la app.
+curl -sS https://api.simai.cl/api/salud    # {"ok":true,"esquema":"https"}  <- tiene que decir https
+curl -sS http://api.simai.cl/api/salud     # {"ok":true,"esquema":"http"}
+
+# 2. Recién ahí, FORZAR_HTTPS=true en las variables de la app y reiniciar.
+curl -sS -o /dev/null -w "%{http_code} %{redirect_url}\n" http://api.simai.cl/api/salud
+# 308 https://api.simai.cl/api/salud
+```
+
+Si algo saliera mal, se apaga poniendo `FORZAR_HTTPS=false` en el panel y
+reiniciando: no hay que volver a subir archivos.
+
+Antes de encenderla conviene revisar que nada llame a la API por HTTP, porque
+el redirect agrega un salto a cada petición: `PUBLIC_URL` y
+`GOOGLE_REDIRECT_URI` en las variables de la app, la URL del callback en el
+flujo de N8N y `apiUrl` en `src/environments/environment.ts`.
+
 ## Antes de publicar
 
-- [ ] `COOKIE_SECURE=true` y todo el tráfico por HTTPS
+- [ ] `COOKIE_SECURE=true` y el redirect a HTTPS puesto (ver arriba)
 - [ ] `SECRET_KEY` aleatorio y fuera del repositorio
 - [ ] Front y API bajo el mismo dominio (`simai.cl` y `api.simai.cl`), para que
       la cookie `SameSite=Lax` viaje sin problemas

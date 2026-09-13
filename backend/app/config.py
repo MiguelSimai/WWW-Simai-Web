@@ -28,6 +28,25 @@ class Config(BaseSettings):
     # En producción tiene que ser True: sin esto la cookie viaja en claro.
     cookie_secure: bool = True
 
+    # Manda a HTTPS lo que llegue en claro.
+    #
+    # Esto le toca al servidor web, no a la aplicación, y de hecho el dominio
+    # tiene encendido el "Force HTTPS Redirect" de cPanel. No sirve: bajo
+    # Passenger la petición llega a la app antes de que esa regla —o cualquier
+    # cosa que diga un .htaccess— alcance a aplicarse, y
+    # http://api.simai.cl/api/salud respondía 200 en claro. La aplicación es el
+    # único punto por el que la petición pasa seguro, así que la redirección
+    # vive acá (ver RedireccionHTTPS en main.py).
+    #
+    # Va como variable y no fijo en el código para poder apagarlo desde el
+    # panel, sin subir archivos: si el servidor informara mal el esquema, la
+    # app redirigiría a HTTPS una petición que YA es HTTPS y la API quedaría en
+    # un bucle, es decir muerta. Antes de encenderlo hay que mirar `esquema` en
+    # /api/salud, que es justamente para eso.
+    #
+    # En local queda apagado: ahí se trabaja sobre http://localhost.
+    forzar_https: bool = False
+
     frontend_url: str = "http://localhost:4200"
 
     # --- Datos de transferencia ---
